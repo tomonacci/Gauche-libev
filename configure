@@ -20,7 +20,7 @@
 
 ;; Initialize configure.  This creates the global context, parses
 ;; command-line args and sets up default values.
-(cf-init "Gauche-libev" "1.0" "nobody@example.org")
+(cf-init "Gauche-libev" "0.1" "tomonacci@gmail.com")
 
 ;; Set up gauche related commands.  The commands are set by scanning
 ;; PATH.  You can override them by "GOSH=/my/gosh ./configure" etc.
@@ -39,7 +39,7 @@
 (cf-subst 'EXEEXT (gauche-config "--executable-suffix"))
 
 (cf-subst 'default_prefix (gauche-config "--prefix"))
- 
+
 (cf-subst 'GAUCHE_PKGINCDIR  (gauche-config "--pkgincdir"))
 (cf-subst 'GAUCHE_PKGLIBDIR  (gauche-config "--pkglibdir"))
 (cf-subst 'GAUCHE_PKGARCHDIR (gauche-config "--pkgarchdir"))
