@@ -1,7 +1,3 @@
-;;;
-;;; libevlib.stub
-;;;
-
 "
 #include <stdio.h>
 #include <gauche.h>
@@ -18,7 +14,7 @@ ScmClass *EvLoopClass, *EvIoWatcherClass;
 #define EV_IO_WATCHER_UNBOX(obj) SCM_FOREIGN_POINTER_REF(struct ev_io*, obj)
 #define EV_IO_WATCHER_BOX(ptr) Scm_MakeForeignPointer(EvIoWatcherClass, ptr)
 
-void Scm_Init_libevlib(ScmModule*);
+void Scm_Init_libev_glue(ScmModule*);
 "
 
 (define-type <ev-loop> "struct ev_loop*" "ev-loop"
@@ -26,9 +22,6 @@ void Scm_Init_libevlib(ScmModule*);
 
 (define-type <ev-io-watcher> "struct ev_io*" "ev-io-watcher"
   "EV_IO_WATCHER_P" "EV_IO_WATCHER_UNBOX" "EV_IO_WATCHER_BOX")
-
-;; The following entry is a dummy one.
-;; Replace it for your definitions.
 
 (define-cproc test-libev () ::<const-cstring>
   (result "libev is working"))
@@ -95,5 +88,5 @@ void Scm_Init_libevlib(ScmModule*);
        mod "<ev-io-watcher>"
        ev_io_watcher_print ev_io_watcher_cleanup
        (logior SCM_FOREIGN_POINTER_KEEP_IDENTITY SCM_FOREIGN_POINTER_MAP_NULL)))
-    (Scm_Init_libevlib mod)
+    (Scm_Init_libev_glue mod)
     ))
