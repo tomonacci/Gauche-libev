@@ -3,8 +3,29 @@
 ;;;
 
 "
-#include \"libev.h\"
+#include <stdio.h>
+#include <gauche.h>
+#include <gauche/extend.h>
+#include <ev.h>
+
+ScmClass *EvLoopClass, *EvIoWatcherClass;
+
+#define EV_LOOP_P(obj) SCM_XTYPEP(obj, EvLoopClass)
+#define EV_LOOP_UNBOX(obj) SCM_FOREIGN_POINTER_REF(struct ev_loop*, obj)
+#define EV_LOOP_BOX(ptr) Scm_MakeForeignPointer(EvLoopClass, ptr)
+
+#define EV_IO_WATCHER_P(obj) SCM_XTYPEP(obj, EvIoWatcherClass)
+#define EV_IO_WATCHER_UNBOX(obj) SCM_FOREIGN_POINTER_REF(struct ev_io*, obj)
+#define EV_IO_WATCHER_BOX(ptr) Scm_MakeForeignPointer(EvIoWatcherClass, ptr)
+
+void Scm_Init_libevlib(ScmModule*);
 "
+
+(define-type <ev-loop> "struct ev_loop*" "ev-loop"
+  "EV_LOOP_P" "EV_LOOP_UNBOX" "EV_LOOP_BOX")
+
+(define-type <ev-io-watcher> "struct ev_io*" "ev-io-watcher"
+  "EV_IO_WATCHER_P" "EV_IO_WATCHER_UNBOX" "EV_IO_WATCHER_BOX")
 
 ;; The following entry is a dummy one.
 ;; Replace it for your definitions.
@@ -12,7 +33,67 @@
 (define-cproc test-libev () ::<const-cstring>
   (result "libev is working"))
 
+(define-cproc ev-run (loop::<ev-loop>)::<void>
+  (ev_run loop 0)
+  )
 
-;; Local variables:
-;; mode: scheme
-;; end:
+(define-cproc ev-loop-new (flags::<uint>)::<ev-loop>
+  (let* ((loop::(struct ev_loop*) (ev_loop_new flags)))
+    (return loop))
+  )
+
+(define-cproc ev-default-loop (flags::<uint>)::<ev-loop>
+  (return (ev_default_loop flags)))
+
+(define-cfn io_cb (loop::(struct ev_loop*) w::(struct ev_io*) revents::int)::void :static
+  (Scm_ApplyRec3 (-> w data) (EV_LOOP_BOX loop) (EV_IO_WATCHER_BOX w) (SCM_MAKE_INT revents))
+  )
+
+(define-cproc ev-io-new ()::<ev-io-watcher>
+  (let* ((w::(struct ev_io*) (malloc (sizeof (struct ev_io))))
+         )
+    (return w)
+    )
+  )
+
+(define-cproc ev-io-init (w::<ev-io-watcher> callback fd::<int> events::<int>)::<void>
+  (set! (-> w data) callback)
+  (ev_io_init w io_cb fd events)
+  )
+
+(define-cproc ev-io-start (loop::<ev-loop> w::<ev-io-watcher>)::<void>
+  (ev_io_start loop w)
+  )
+
+(define-cproc ev-io-stop (loop::<ev-loop> w::<ev-io-watcher>)::<void>
+  (ev_io_stop loop w)
+  )
+
+(define-cfn ev_io_watcher_print (obj out::ScmPort* ctx::ScmWriteContext*)::void
+  (Scm_Printf out "#<ev-io-watcher %p>" obj)
+  )
+
+(define-cfn ev_io_watcher_cleanup (obj)::void
+  ; Should take care of this:
+  ;   http://lists.schmorp.de/pipermail/libev/2014q4/002462.html
+  (free (EV_IO_WATCHER_UNBOX obj))
+  )
+
+(define-constant EV_READ (c "SCM_MAKE_INT(EV_READ)"))
+(define-constant EV_WRITE (c "SCM_MAKE_INT(EV_WRITE)"))
+
+(define-cfn Scm_Init_libev ()::void
+  (let* ((mod::ScmModule*))
+    (SCM_INIT_EXTENSION libev)
+    (set! mod (SCM_MODULE (SCM_FIND_MODULE "control.libev" TRUE)))
+    (set! EvLoopClass
+      (Scm_MakeForeignPointerClass
+       mod "<ev-loop>" NULL NULL
+       (logior SCM_FOREIGN_POINTER_KEEP_IDENTITY SCM_FOREIGN_POINTER_MAP_NULL)))
+    (set! EvIoWatcherClass
+      (Scm_MakeForeignPointerClass
+       mod "<ev-io-watcher>"
+       ev_io_watcher_print ev_io_watcher_cleanup
+       (logior SCM_FOREIGN_POINTER_KEEP_IDENTITY SCM_FOREIGN_POINTER_MAP_NULL)))
+    (Scm_Init_libevlib mod)
+    ))
