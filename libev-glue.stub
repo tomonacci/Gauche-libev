@@ -15,7 +15,7 @@ ScmClass *EvLoopClass, *EvIoWatcherClass, *EvSignalWatcherClass;
 #define EV_IO_WATCHER_BOX(ptr) Scm_MakeForeignPointer(EvIoWatcherClass, ptr)
 
 #define EV_SIGNAL_WATCHER_P(obj) SCM_XTYPEP(obj, EvSignalWatcherClass)
-#define EV_SIGNAL_WATCHER_UNBOX(obj) SCM_FOREIGN_POINTER_REF(struct ev_io*, obj)
+#define EV_SIGNAL_WATCHER_UNBOX(obj) SCM_FOREIGN_POINTER_REF(struct ev_signal*, obj)
 #define EV_SIGNAL_WATCHER_BOX(ptr) Scm_MakeForeignPointer(EvSignalWatcherClass, ptr)
 
 void Scm_Init_libev_glue(ScmModule*);
