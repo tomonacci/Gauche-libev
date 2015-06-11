@@ -8,6 +8,7 @@
           ev-default-loop
           ev-loop-new
           ev-run
+          <ev-watcher>
           <ev-io-watcher>
           ev-is-active
           ev-io-new

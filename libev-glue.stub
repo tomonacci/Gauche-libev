@@ -19,6 +19,13 @@ ScmClass *EvLoopClass, *EvIoWatcherClass, *EvSignalWatcherClass;
 #define EV_SIGNAL_WATCHER_UNBOX(obj) SCM_FOREIGN_POINTER_REF(struct ev_signal*, obj)
 #define EV_SIGNAL_WATCHER_BOX(ptr) Scm_MakeForeignPointer(EvSignalWatcherClass, ptr)
 
+SCM_CLASS_DECL(Scm_EvWatcherClass);
+#define SCM_CLASS_EV_WATCHER (&Scm_EvWatcherClass)
+#define SCM_EV_WATCHER(obj) ((ScmEvWatcher*)(obj))
+#define SCM_EV_WATCHER_P(obj) (SCM_XTYPEP(obj, SCM_CLASS_EV_WATCHER))
+
+SCM_DEFINE_ABSTRACT_CLASS(Scm_EvWatcherClass, SCM_CLASS_DEFAULT_CPL);
+
 SCM_CLASS_DECL(Scm_EvTimerWatcherClass);
 #define SCM_CLASS_EV_TIMER_WATCHER (&Scm_EvTimerWatcherClass)
 #define SCM_EV_TIMER_WATCHER(obj) ((ScmEvTimerWatcher*)(obj))
@@ -49,7 +56,7 @@ void Scm_Init_libev_glue(ScmModule*);
     (Scm_Error "double required, but got %S" value))
   (set! (ref (-> (SCM_EV_TIMER_WATCHER obj) timer) repeat) (Scm_GetDouble value)))
 
-(define-cclass <ev-timer-watcher> "ScmEvTimerWatcher*" "Scm_EvTimerWatcherClass" ()
+(define-cclass <ev-timer-watcher> "ScmEvTimerWatcher*" "Scm_EvTimerWatcherClass" (Scm_EvWatcherClass)
   ((repeat :getter (c "timer_repeat_getter") :setter (c "timer_repeat_setter"))
    ;(minor-version :type <real>)
    ))
@@ -145,6 +152,7 @@ void Scm_Init_libev_glue(ScmModule*);
       (Scm_MakeForeignPointerClass
        mod "<ev-loop>" NULL NULL
        (logior SCM_FOREIGN_POINTER_KEEP_IDENTITY SCM_FOREIGN_POINTER_MAP_NULL)))
+    (Scm_InitStaticClass (& Scm_EvWatcherClass) "<ev-watcher>" mod NULL 0)
     ; Should take care of this:
     ;   http://lists.schmorp.de/pipermail/libev/2014q4/002462.html
     (set! EvIoWatcherClass
