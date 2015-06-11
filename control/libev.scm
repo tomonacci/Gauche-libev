@@ -19,6 +19,11 @@
           ev-signal-init
           ev-signal-start
           ev-signal-stop
+          <ev-timer-watcher>
+          ev-timer-new
+          ev-timer-init
+          ev-timer-start
+          ev-timer-stop
           )
   )
 (select-module control.libev)

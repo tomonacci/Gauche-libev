@@ -1,6 +1,7 @@
 "
 #include <stdio.h>
 #include <gauche.h>
+#include <gauche/class.h>
 #include <gauche/extend.h>
 #include <ev.h>
 
@@ -18,6 +19,16 @@ ScmClass *EvLoopClass, *EvIoWatcherClass, *EvSignalWatcherClass;
 #define EV_SIGNAL_WATCHER_UNBOX(obj) SCM_FOREIGN_POINTER_REF(struct ev_signal*, obj)
 #define EV_SIGNAL_WATCHER_BOX(ptr) Scm_MakeForeignPointer(EvSignalWatcherClass, ptr)
 
+SCM_CLASS_DECL(Scm_EvTimerWatcherClass);
+#define SCM_CLASS_EV_TIMER_WATCHER (&Scm_EvTimerWatcherClass)
+#define SCM_EV_TIMER_WATCHER(obj) ((ScmEvTimerWatcher*)(obj))
+#define SCM_EV_TIMER_WATCHER_P(obj) (SCM_XTYPEP(obj, SCM_CLASS_EV_TIMER_WATCHER))
+
+typedef struct ScmEvTimerWatcherRec {
+  SCM_HEADER;
+  struct ev_timer timer;
+} ScmEvTimerWatcher;
+
 void Scm_Init_libev_glue(ScmModule*);
 "
 
@@ -29,6 +40,19 @@ void Scm_Init_libev_glue(ScmModule*);
 
 (define-type <ev-signal-watcher> "struct ev_signal*" "ev-signal-watcher"
   "EV_SIGNAL_WATCHER_P" "EV_SIGNAL_WATCHER_UNBOX" "EV_SIGNAL_WATCHER_BOX")
+
+(define-cfn timer_repeat_getter (obj) :static
+  (return (Scm_VMReturnFlonum (ref (-> (SCM_EV_TIMER_WATCHER obj) timer) repeat))))
+
+(define-cfn timer_repeat_setter (obj value)::void :static
+  (unless (SCM_REALP value)
+    (Scm_Error "double required, but got %S" value))
+  (set! (ref (-> (SCM_EV_TIMER_WATCHER obj) timer) repeat) (Scm_GetDouble value)))
+
+(define-cclass <ev-timer-watcher> "ScmEvTimerWatcher*" "Scm_EvTimerWatcherClass" ()
+  ((repeat :getter (c "timer_repeat_getter") :setter (c "timer_repeat_setter"))
+   ;(minor-version :type <real>)
+   ))
 
 (define-cproc test-libev () ::<const-cstring>
   (result "libev is working"))
@@ -89,6 +113,28 @@ void Scm_Init_libev_glue(ScmModule*);
 
 (define-cproc ev-signal-stop (loop::<ev-loop> w::<ev-signal-watcher>)::<void>
   (ev_signal_stop loop w)
+  )
+
+(define-cfn timer_cb (loop::(struct ev_loop*) w::(struct ev_timer*) revents::int)::void :static
+  (Scm_ApplyRec3 (-> w data) (EV_LOOP_BOX loop) (EV_SIGNAL_WATCHER_BOX w) (SCM_MAKE_INT revents))
+  )
+
+(define-cproc ev-timer-new ()
+  (let* ((w (SCM_NEW ScmEvTimerWatcher)))
+    (SCM_SET_CLASS w SCM_CLASS_EV_TIMER_WATCHER)
+    (return (SCM_OBJ w))))
+
+(define-cproc ev-timer-init (w::<ev-timer-watcher> callback after::<real> repeat::<real>)::<void>
+  (set! (ref (-> w timer) data) callback)
+  (ev_timer_init (& (-> w timer)) timer_cb after repeat)
+  )
+
+(define-cproc ev-timer-start (loop::<ev-loop> w::<ev-timer-watcher>)::<void>
+  (ev_timer_start loop (& (-> w timer)))
+  )
+
+(define-cproc ev-timer-stop (loop::<ev-loop> w::<ev-timer-watcher>)::<void>
+  (ev_timer_stop loop (& (-> w timer)))
   )
 
 (define-constant EV_READ (c "SCM_MAKE_INT(EV_READ)"))
