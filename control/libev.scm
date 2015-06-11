@@ -5,15 +5,15 @@
 (define-module control.libev
   (export EV_READ EV_WRITE
           <ev-loop>
-          <ev-io-watcher>
           ev-default-loop
           ev-loop-new
+          ev-run
+          <ev-io-watcher>
           ev-is-active
           ev-io-new
           ev-io-init
           ev-io-start
           ev-io-stop
-          ev-run
           <ev-signal-watcher>
           ev-signal-new
           )

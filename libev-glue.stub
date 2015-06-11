@@ -53,10 +53,7 @@ void Scm_Init_libev_glue(ScmModule*);
   (return (ev_is_active w)))
 
 (define-cproc ev-io-new ()::<ev-io-watcher>
-  (let* ((w::(struct ev_io*) (malloc (sizeof (struct ev_io))))
-         )
-    (return w)
-    )
+  (return (SCM_NEW (struct ev_io)))
   )
 
 (define-cproc ev-io-init (w::<ev-io-watcher> callback fd::<int> events::<int>)::<void>
@@ -70,16 +67,6 @@ void Scm_Init_libev_glue(ScmModule*);
 
 (define-cproc ev-io-stop (loop::<ev-loop> w::<ev-io-watcher>)::<void>
   (ev_io_stop loop w)
-  )
-
-(define-cfn ev_io_watcher_print (obj out::ScmPort* ctx::ScmWriteContext*)::void
-  (Scm_Printf out "#<ev-io-watcher %p>" obj)
-  )
-
-(define-cfn ev_io_watcher_cleanup (obj)::void
-  ; Should take care of this:
-  ;   http://lists.schmorp.de/pipermail/libev/2014q4/002462.html
-  (free (EV_IO_WATCHER_UNBOX obj))
   )
 
 (define-cproc ev-signal-new ()::<ev-signal-watcher>
@@ -97,10 +84,11 @@ void Scm_Init_libev_glue(ScmModule*);
       (Scm_MakeForeignPointerClass
        mod "<ev-loop>" NULL NULL
        (logior SCM_FOREIGN_POINTER_KEEP_IDENTITY SCM_FOREIGN_POINTER_MAP_NULL)))
+    ; Should take care of this:
+    ;   http://lists.schmorp.de/pipermail/libev/2014q4/002462.html
     (set! EvIoWatcherClass
       (Scm_MakeForeignPointerClass
-       mod "<ev-io-watcher>"
-       ev_io_watcher_print ev_io_watcher_cleanup
+       mod "<ev-io-watcher>" NULL NULL
        (logior SCM_FOREIGN_POINTER_KEEP_IDENTITY SCM_FOREIGN_POINTER_MAP_NULL)))
     (set! EvSignalWatcherClass
       (Scm_MakeForeignPointerClass
