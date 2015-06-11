@@ -69,8 +69,26 @@ void Scm_Init_libev_glue(ScmModule*);
   (ev_io_stop loop w)
   )
 
+; FIXME copy-n-pasted from io_cb
+(define-cfn signal_cb (loop::(struct ev_loop*) w::(struct ev_signal*) revents::int)::void :static
+  (Scm_ApplyRec3 (-> w data) (EV_LOOP_BOX loop) (EV_SIGNAL_WATCHER_BOX w) (SCM_MAKE_INT revents))
+  )
+
 (define-cproc ev-signal-new ()::<ev-signal-watcher>
   (return (SCM_NEW (struct ev_signal)))
+  )
+
+(define-cproc ev-signal-init (w::<ev-signal-watcher> callback signum::<int>)::<void>
+  (set! (-> w data) callback)
+  (ev_signal_init w signal_cb signum)
+  )
+
+(define-cproc ev-signal-start (loop::<ev-loop> w::<ev-signal-watcher>)::<void>
+  (ev_signal_start loop w)
+  )
+
+(define-cproc ev-signal-stop (loop::<ev-loop> w::<ev-signal-watcher>)::<void>
+  (ev_signal_stop loop w)
   )
 
 (define-constant EV_READ (c "SCM_MAKE_INT(EV_READ)"))
