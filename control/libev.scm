@@ -8,6 +8,7 @@
           <ev-io-watcher>
           ev-default-loop
           ev-loop-new
+          ev-is-active
           ev-io-new
           ev-io-init
           ev-io-start

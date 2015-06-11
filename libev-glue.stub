@@ -42,6 +42,9 @@ void Scm_Init_libev_glue(ScmModule*);
   (Scm_ApplyRec3 (-> w data) (EV_LOOP_BOX loop) (EV_IO_WATCHER_BOX w) (SCM_MAKE_INT revents))
   )
 
+(define-cproc ev-is-active (w::<ev-io-watcher>)::<boolean>
+  (return (ev_is_active w)))
+
 (define-cproc ev-io-new ()::<ev-io-watcher>
   (let* ((w::(struct ev_io*) (malloc (sizeof (struct ev_io))))
          )
