@@ -54,9 +54,6 @@ void Scm_Init_libev_glue(ScmModule*);
    ;(minor-version :type <real>)
    ))
 
-(define-cproc test-libev () ::<const-cstring>
-  (result "libev is working"))
-
 (define-cproc ev-run (loop::<ev-loop>)::<void>
   (ev_run loop 0)
   )
