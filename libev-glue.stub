@@ -120,9 +120,9 @@ void Scm_Init_libev_glue(ScmModule*);
   )
 
 (define-cproc ev-timer-new ()
-  (let* ((w (SCM_NEW ScmEvTimerWatcher)))
+  (let* ((w (SCM_OBJ (SCM_NEW ScmEvTimerWatcher))))
     (SCM_SET_CLASS w SCM_CLASS_EV_TIMER_WATCHER)
-    (return (SCM_OBJ w))))
+    (return w)))
 
 (define-cproc ev-timer-init (w::<ev-timer-watcher> callback after::<real> repeat::<real>)::<void>
   (set! (ref (-> w timer) data) callback)
