@@ -4,7 +4,7 @@
 #include <gauche/extend.h>
 #include <ev.h>
 
-ScmClass *EvLoopClass, *EvIoWatcherClass;
+ScmClass *EvLoopClass, *EvIoWatcherClass, *EvSignalWatcherClass;
 
 #define EV_LOOP_P(obj) SCM_XTYPEP(obj, EvLoopClass)
 #define EV_LOOP_UNBOX(obj) SCM_FOREIGN_POINTER_REF(struct ev_loop*, obj)
@@ -14,6 +14,10 @@ ScmClass *EvLoopClass, *EvIoWatcherClass;
 #define EV_IO_WATCHER_UNBOX(obj) SCM_FOREIGN_POINTER_REF(struct ev_io*, obj)
 #define EV_IO_WATCHER_BOX(ptr) Scm_MakeForeignPointer(EvIoWatcherClass, ptr)
 
+#define EV_SIGNAL_WATCHER_P(obj) SCM_XTYPEP(obj, EvSignalWatcherClass)
+#define EV_SIGNAL_WATCHER_UNBOX(obj) SCM_FOREIGN_POINTER_REF(struct ev_io*, obj)
+#define EV_SIGNAL_WATCHER_BOX(ptr) Scm_MakeForeignPointer(EvSignalWatcherClass, ptr)
+
 void Scm_Init_libev_glue(ScmModule*);
 "
 
@@ -22,6 +26,9 @@ void Scm_Init_libev_glue(ScmModule*);
 
 (define-type <ev-io-watcher> "struct ev_io*" "ev-io-watcher"
   "EV_IO_WATCHER_P" "EV_IO_WATCHER_UNBOX" "EV_IO_WATCHER_BOX")
+
+(define-type <ev-signal-watcher> "struct ev_signal*" "ev-signal-watcher"
+  "EV_SIGNAL_WATCHER_P" "EV_SIGNAL_WATCHER_UNBOX" "EV_SIGNAL_WATCHER_BOX")
 
 (define-cproc test-libev () ::<const-cstring>
   (result "libev is working"))
@@ -75,6 +82,10 @@ void Scm_Init_libev_glue(ScmModule*);
   (free (EV_IO_WATCHER_UNBOX obj))
   )
 
+(define-cproc ev-signal-new ()::<ev-signal-watcher>
+  (return (SCM_NEW (struct ev_signal)))
+  )
+
 (define-constant EV_READ (c "SCM_MAKE_INT(EV_READ)"))
 (define-constant EV_WRITE (c "SCM_MAKE_INT(EV_WRITE)"))
 
@@ -90,6 +101,10 @@ void Scm_Init_libev_glue(ScmModule*);
       (Scm_MakeForeignPointerClass
        mod "<ev-io-watcher>"
        ev_io_watcher_print ev_io_watcher_cleanup
+       (logior SCM_FOREIGN_POINTER_KEEP_IDENTITY SCM_FOREIGN_POINTER_MAP_NULL)))
+    (set! EvSignalWatcherClass
+      (Scm_MakeForeignPointerClass
+       mod "<ev-signal-watcher>" NULL NULL
        (logior SCM_FOREIGN_POINTER_KEEP_IDENTITY SCM_FOREIGN_POINTER_MAP_NULL)))
     (Scm_Init_libev_glue mod)
     ))

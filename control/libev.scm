@@ -14,6 +14,8 @@
           ev-io-start
           ev-io-stop
           ev-run
+          <ev-signal-watcher>
+          ev-signal-new
           )
   )
 (select-module control.libev)
