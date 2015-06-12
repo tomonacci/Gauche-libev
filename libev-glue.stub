@@ -24,7 +24,10 @@ SCM_CLASS_DECL(Scm_EvWatcherClass);
 #define SCM_EV_WATCHER(obj) ((ScmEvWatcher*)(obj))
 #define SCM_EV_WATCHER_P(obj) (SCM_XTYPEP(obj, SCM_CLASS_EV_WATCHER))
 
-SCM_DEFINE_ABSTRACT_CLASS(Scm_EvWatcherClass, SCM_CLASS_DEFAULT_CPL);
+typedef struct ScmEvWatcherRec {
+  SCM_HEADER;
+  struct ev_watcher watcher;
+} ScmEvWatcher;
 
 SCM_CLASS_DECL(Scm_EvTimerWatcherClass);
 #define SCM_CLASS_EV_TIMER_WATCHER (&Scm_EvTimerWatcherClass)
@@ -47,6 +50,8 @@ void Scm_Init_libev_glue(ScmModule*);
 
 (define-type <ev-signal-watcher> "struct ev_signal*" "ev-signal-watcher"
   "EV_SIGNAL_WATCHER_P" "EV_SIGNAL_WATCHER_UNBOX" "EV_SIGNAL_WATCHER_BOX")
+
+(define-cclass <ev-watcher> "ScmEvWatcher*" "Scm_EvWatcherClass" () ())
 
 (define-cfn timer_repeat_getter (obj) :static
   (return (Scm_VMReturnFlonum (ref (-> (SCM_EV_TIMER_WATCHER obj) timer) repeat))))
@@ -73,12 +78,19 @@ void Scm_Init_libev_glue(ScmModule*);
 (define-cproc ev-default-loop (flags::<uint>)::<ev-loop>
   (return (ev_default_loop flags)))
 
+(define-cproc ev-watcher-active? (watcher)::<boolean>
+  (unless (Scm_TypeP watcher SCM_CLASS_EV_WATCHER)
+    (Scm_Error "<ev-watcher> required, but got %S" watcher))
+  (return (ev_is_active (& (-> (SCM_EV_WATCHER watcher) watcher)))))
+
+(define-cproc ev-watcher-pending? (watcher)::<boolean>
+  (unless (Scm_TypeP watcher SCM_CLASS_EV_WATCHER)
+    (Scm_Error "<ev-watcher> required, but got %S" watcher))
+  (return (ev_is_pending (& (-> (SCM_EV_WATCHER watcher) watcher)))))
+
 (define-cfn io_cb (loop::(struct ev_loop*) w::(struct ev_io*) revents::int)::void :static
   (Scm_ApplyRec3 (-> w data) (EV_LOOP_BOX loop) (EV_IO_WATCHER_BOX w) (SCM_MAKE_INT revents))
   )
-
-(define-cproc ev-is-active (w::<ev-io-watcher>)::<boolean>
-  (return (ev_is_active w)))
 
 (define-cproc ev-io-new ()::<ev-io-watcher>
   (return (SCM_NEW (struct ev_io)))

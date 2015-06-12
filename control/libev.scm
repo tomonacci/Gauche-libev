@@ -9,8 +9,9 @@
           ev-loop-new
           ev-run
           <ev-watcher>
+          ev-watcher-active?
+          ev-watcher-pending?
           <ev-io-watcher>
-          ev-is-active
           ev-io-new
           ev-io-init
           ev-io-start

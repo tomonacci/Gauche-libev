@@ -14,6 +14,12 @@
 (test* "<ev-watcher>" #t (is-a? <ev-watcher> <class>))
 (test* "ev-signal-new" #t (is-a? (ev-signal-new) <ev-signal-watcher>))
 (test* "ev-timer-new" #t (is-a? (ev-timer-new) <ev-timer-watcher>))
+(test* "ev-watcher-active? (inactive)" #f (ev-watcher-active? (ev-timer-new)))
+(test* "ev-watcher-active? (active)" #t
+  (let1 timer (ev-timer-new)
+    (ev-timer-init timer values 0 0)
+    (ev-timer-start (ev-default-loop 0) timer)
+    (ev-watcher-active? timer)))
 (test* "constants" #t (and (integer? EV_READ) (integer? EV_WRITE)))
 
 ;; If you don't want `gosh' to exit with nonzero status even if
