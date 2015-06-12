@@ -5,19 +5,11 @@
 #include <gauche/extend.h>
 #include <ev.h>
 
-ScmClass *EvLoopClass, *EvIoWatcherClass, *EvSignalWatcherClass;
+ScmClass *EvLoopClass;
 
 #define EV_LOOP_P(obj) SCM_XTYPEP(obj, EvLoopClass)
 #define EV_LOOP_UNBOX(obj) SCM_FOREIGN_POINTER_REF(struct ev_loop*, obj)
 #define EV_LOOP_BOX(ptr) Scm_MakeForeignPointer(EvLoopClass, ptr)
-
-#define EV_IO_WATCHER_P(obj) SCM_XTYPEP(obj, EvIoWatcherClass)
-#define EV_IO_WATCHER_UNBOX(obj) SCM_FOREIGN_POINTER_REF(struct ev_io*, obj)
-#define EV_IO_WATCHER_BOX(ptr) Scm_MakeForeignPointer(EvIoWatcherClass, ptr)
-
-#define EV_SIGNAL_WATCHER_P(obj) SCM_XTYPEP(obj, EvSignalWatcherClass)
-#define EV_SIGNAL_WATCHER_UNBOX(obj) SCM_FOREIGN_POINTER_REF(struct ev_signal*, obj)
-#define EV_SIGNAL_WATCHER_BOX(ptr) Scm_MakeForeignPointer(EvSignalWatcherClass, ptr)
 
 SCM_CLASS_DECL(Scm_EvWatcherClass);
 #define SCM_CLASS_EV_WATCHER (&Scm_EvWatcherClass)
@@ -26,18 +18,9 @@ SCM_CLASS_DECL(Scm_EvWatcherClass);
 
 typedef struct ScmEvWatcherRec {
   SCM_HEADER;
+  ScmObj callback;
   struct ev_watcher watcher;
 } ScmEvWatcher;
-
-SCM_CLASS_DECL(Scm_EvTimerWatcherClass);
-#define SCM_CLASS_EV_TIMER_WATCHER (&Scm_EvTimerWatcherClass)
-#define SCM_EV_TIMER_WATCHER(obj) ((ScmEvTimerWatcher*)(obj))
-#define SCM_EV_TIMER_WATCHER_P(obj) (SCM_XTYPEP(obj, SCM_CLASS_EV_TIMER_WATCHER))
-
-typedef struct ScmEvTimerWatcherRec {
-  SCM_HEADER;
-  struct ev_timer timer;
-} ScmEvTimerWatcher;
 
 void Scm_Init_libev_glue(ScmModule*);
 "
@@ -51,10 +34,15 @@ void Scm_Init_libev_glue(ScmModule*);
          ((cadr slot) => (cut string-append "static ScmObj " <> "(ScmObj);"))
          ((caddr slot) => (cut string-append "static void " <> "(ScmObj, ScmObj);"))))
      slots))
+  (define (slots->specs slots)
+    (define (wrap cfn) (and cfn `(c ,cfn)))
+    (map (^(slot) `(,(car slot) :getter ,(wrap (cadr slot)) :setter ,(wrap (cadr slot)))) slots))
   (define (watcher-class-decl name slots)
     (let ((NAME (string-upcase name))
           (Name (string-titlecase name))
-          (<name> (string->symbol #`"<ev-,|name|>")))
+          (<name> (string->symbol #`"<ev-,|name|>"))
+          (w (string->symbol #`"w::<ev-,|name|>"))
+          )
       `(begin
          ,#`"
 SCM_CLASS_DECL(Scm_Ev,|Name|Class);
@@ -64,20 +52,46 @@ SCM_CLASS_DECL(Scm_Ev,|Name|Class);
 
 typedef struct ScmEv,|Name|Rec {
   SCM_HEADER;
+  ScmObj callback;
   struct ev_,name ,name;
 } ScmEv,|Name|;
 "
          ,@(slots->decls slots)
          (define-cclass ,<name> ,#`"ScmEv,|Name|*" ,#`"Scm_Ev,|Name|Class" (Scm_EvWatcherClass)
-           ,(map
-             (^(slot) `(,(car slot) :getter (c ,(cadr slot)) :setter ,(caddr slot)))
-             slots)
+           ,(slots->specs slots)
            (allocator
              (let* ((w (SCM_OBJ (SCM_NEW ,(string->symbol #`"ScmEv,|Name|")))))
                (SCM_SET_CLASS w ,(string->symbol #`"SCM_CLASS_EV_,NAME"))
+               (ref (-> (,(string->symbol #`"SCM_EV_,NAME") w) ,(string->symbol name)) data)
                (return w)))
            )
+         (define-cfn ,(string->symbol #`",|name|_cb") (loop::(struct ev_loop*) w::(struct ,(string->symbol #`"ev_,|name|*")) revents::int)::void :static
+           (Scm_ApplyRec3 (-> (SCM_EV_WATCHER (-> w data)) callback) (EV_LOOP_BOX loop) (SCM_OBJ (-> w data)) (SCM_MAKE_INT revents)))
+         (define-cproc ,(string->symbol #`"ev-,|name|-start") (loop::<ev-loop> ,w)::<void>
+           (,(string->symbol #`"ev_,|name|_start") loop (& (-> w ,(string->symbol name)))))
+         (define-cproc ,(string->symbol #`"ev-,|name|-stop") (loop::<ev-loop> ,w)::<void>
+           (,(string->symbol #`"ev_,|name|_stop") loop (& (-> w ,(string->symbol name)))))
          ))))
+
+(define-type <ev-loop> "struct ev_loop*" "ev-loop"
+  "EV_LOOP_P" "EV_LOOP_UNBOX" "EV_LOOP_BOX")
+
+(define-cclass <ev-watcher> "ScmEvWatcher*" "Scm_EvWatcherClass" () ((callback)))
+
+(eval*
+  ;(for-each (^s (write s) (newline)) (watcher-class-decl "io" ()))
+  (watcher-class-decl "io"
+    '(;(fd "io_fd_getter" "io_fd_setter")
+      )))
+
+(eval*
+  (watcher-class-decl "signal"
+    '(;(fd "io_fd_getter" "io_fd_setter")
+      )))
+
+(eval*
+  (watcher-class-decl "timer"
+    '((repeat "timer_repeat_getter" "timer_repeat_setter"))))
 
 (eval*
   (watcher-class-decl "stat"
@@ -92,34 +106,13 @@ typedef struct ScmEv,|Name|Rec {
 (define-cfn stat_path_getter (obj) :static
   (return (SCM_MAKE_STR_COPYING (ref (-> (SCM_EV_STAT obj) stat) path))))
 
-(define-type <ev-loop> "struct ev_loop*" "ev-loop"
-  "EV_LOOP_P" "EV_LOOP_UNBOX" "EV_LOOP_BOX")
-
-(define-type <ev-io-watcher> "struct ev_io*" "ev-io-watcher"
-  "EV_IO_WATCHER_P" "EV_IO_WATCHER_UNBOX" "EV_IO_WATCHER_BOX")
-
-(define-type <ev-signal-watcher> "struct ev_signal*" "ev-signal-watcher"
-  "EV_SIGNAL_WATCHER_P" "EV_SIGNAL_WATCHER_UNBOX" "EV_SIGNAL_WATCHER_BOX")
-
-(define-cclass <ev-watcher> "ScmEvWatcher*" "Scm_EvWatcherClass" () ())
-
 (define-cfn timer_repeat_getter (obj) :static
-  (return (Scm_VMReturnFlonum (ref (-> (SCM_EV_TIMER_WATCHER obj) timer) repeat))))
+  (return (Scm_VMReturnFlonum (ref (-> (SCM_EV_TIMER obj) timer) repeat))))
 
 (define-cfn timer_repeat_setter (obj value)::void :static
   (unless (SCM_REALP value)
     (Scm_Error "double required, but got %S" value))
-  (set! (ref (-> (SCM_EV_TIMER_WATCHER obj) timer) repeat) (Scm_GetDouble value)))
-
-(define-cclass <ev-timer-watcher> "ScmEvTimerWatcher*" "Scm_EvTimerWatcherClass" (Scm_EvWatcherClass)
-  ((repeat :getter (c "timer_repeat_getter") :setter (c "timer_repeat_setter"))
-   ;(minor-version :type <real>)
-   )
-  (allocator
-    (let* ((w (SCM_OBJ (SCM_NEW ScmEvTimerWatcher))))
-      (SCM_SET_CLASS w SCM_CLASS_EV_TIMER_WATCHER)
-      (return w)))
-  )
+  (set! (ref (-> (SCM_EV_TIMER obj) timer) repeat) (Scm_GetDouble value)))
 
 (define-cproc ev-run (loop::<ev-loop>)::<void>
   (ev_run loop 0)
@@ -143,69 +136,19 @@ typedef struct ScmEv,|Name|Rec {
     (Scm_Error "<ev-watcher> required, but got %S" watcher))
   (return (ev_is_pending (& (-> (SCM_EV_WATCHER watcher) watcher)))))
 
-(define-cfn io_cb (loop::(struct ev_loop*) w::(struct ev_io*) revents::int)::void :static
-  (Scm_ApplyRec3 (-> w data) (EV_LOOP_BOX loop) (EV_IO_WATCHER_BOX w) (SCM_MAKE_INT revents))
+(define-cproc ev-io-init (w::<ev-io> callback fd::<int> events::<int>)::<void>
+  (set! (-> (SCM_EV_IO w) callback) callback)
+  (ev_io_init (& (-> (SCM_EV_IO w) io)) io_cb fd events)
   )
 
-(define-cproc ev-io-new ()::<ev-io-watcher>
-  (return (SCM_NEW (struct ev_io)))
+(define-cproc ev-signal-init (w::<ev-signal> callback signum::<int>)::<void>
+  (set! (-> (SCM_EV_SIGNAL w) callback) callback)
+  (ev_signal_init (& (-> (SCM_EV_SIGNAL w) signal)) signal_cb signum)
   )
 
-(define-cproc ev-io-init (w::<ev-io-watcher> callback fd::<int> events::<int>)::<void>
-  (set! (-> w data) callback)
-  (ev_io_init w io_cb fd events)
-  )
-
-(define-cproc ev-io-start (loop::<ev-loop> w::<ev-io-watcher>)::<void>
-  (ev_io_start loop w)
-  )
-
-(define-cproc ev-io-stop (loop::<ev-loop> w::<ev-io-watcher>)::<void>
-  (ev_io_stop loop w)
-  )
-
-; FIXME copy-n-pasted from io_cb
-(define-cfn signal_cb (loop::(struct ev_loop*) w::(struct ev_signal*) revents::int)::void :static
-  (Scm_ApplyRec3 (-> w data) (EV_LOOP_BOX loop) (EV_SIGNAL_WATCHER_BOX w) (SCM_MAKE_INT revents))
-  )
-
-(define-cproc ev-signal-new ()::<ev-signal-watcher>
-  (return (SCM_NEW (struct ev_signal)))
-  )
-
-(define-cproc ev-signal-init (w::<ev-signal-watcher> callback signum::<int>)::<void>
-  (set! (-> w data) callback)
-  (ev_signal_init w signal_cb signum)
-  )
-
-(define-cproc ev-signal-start (loop::<ev-loop> w::<ev-signal-watcher>)::<void>
-  (ev_signal_start loop w)
-  )
-
-(define-cproc ev-signal-stop (loop::<ev-loop> w::<ev-signal-watcher>)::<void>
-  (ev_signal_stop loop w)
-  )
-
-(define-cfn timer_cb (loop::(struct ev_loop*) w::(struct ev_timer*) revents::int)::void :static
-  (Scm_ApplyRec3 (-> w data) (EV_LOOP_BOX loop) (EV_SIGNAL_WATCHER_BOX w) (SCM_MAKE_INT revents))
-  )
-
-(define-cproc ev-timer-new ()
-  (let* ((w (SCM_OBJ (SCM_NEW ScmEvTimerWatcher))))
-    (SCM_SET_CLASS w SCM_CLASS_EV_TIMER_WATCHER)
-    (return w)))
-
-(define-cproc ev-timer-init (w::<ev-timer-watcher> callback after::<real> repeat::<real>)::<void>
-  (set! (ref (-> w timer) data) callback)
-  (ev_timer_init (& (-> w timer)) timer_cb after repeat)
-  )
-
-(define-cproc ev-timer-start (loop::<ev-loop> w::<ev-timer-watcher>)::<void>
-  (ev_timer_start loop (& (-> w timer)))
-  )
-
-(define-cproc ev-timer-stop (loop::<ev-loop> w::<ev-timer-watcher>)::<void>
-  (ev_timer_stop loop (& (-> w timer)))
+(define-cproc ev-timer-init (w::<ev-timer> callback after::<real> repeat::<real>)::<void>
+  (set! (-> (SCM_EV_TIMER w) callback) callback)
+  (ev_timer_init (& (-> (SCM_EV_TIMER w) timer)) timer_cb after repeat)
   )
 
 (define-constant EV_READ (c "SCM_MAKE_INT(EV_READ)"))
@@ -222,13 +165,5 @@ typedef struct ScmEv,|Name|Rec {
     (Scm_InitStaticClass (& Scm_EvWatcherClass) "<ev-watcher>" mod NULL 0)
     ; Should take care of this:
     ;   http://lists.schmorp.de/pipermail/libev/2014q4/002462.html
-    (set! EvIoWatcherClass
-      (Scm_MakeForeignPointerClass
-       mod "<ev-io-watcher>" NULL NULL
-       (logior SCM_FOREIGN_POINTER_KEEP_IDENTITY SCM_FOREIGN_POINTER_MAP_NULL)))
-    (set! EvSignalWatcherClass
-      (Scm_MakeForeignPointerClass
-       mod "<ev-signal-watcher>" NULL NULL
-       (logior SCM_FOREIGN_POINTER_KEEP_IDENTITY SCM_FOREIGN_POINTER_MAP_NULL)))
     (Scm_Init_libev_glue mod)
     ))
