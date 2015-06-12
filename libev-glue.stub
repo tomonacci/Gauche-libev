@@ -79,7 +79,6 @@ typedef struct ScmEv,|Name|Rec {
   (watcher-class-decl "stat"
     '(
       (interval "stat_interval_getter" #f)
-      ;(path :type <const-cstring>)
       (path "stat_path_getter" #f)
       )))
 
@@ -111,7 +110,12 @@ typedef struct ScmEv,|Name|Rec {
 (define-cclass <ev-timer-watcher> "ScmEvTimerWatcher*" "Scm_EvTimerWatcherClass" (Scm_EvWatcherClass)
   ((repeat :getter (c "timer_repeat_getter") :setter (c "timer_repeat_setter"))
    ;(minor-version :type <real>)
-   ))
+   )
+  (allocator
+    (let* ((w (SCM_OBJ (SCM_NEW ScmEvTimerWatcher))))
+      (SCM_SET_CLASS w SCM_CLASS_EV_TIMER_WATCHER)
+      (return w)))
+  )
 
 (define-cproc ev-run (loop::<ev-loop>)::<void>
   (ev_run loop 0)
