@@ -26,6 +26,7 @@
           ev-timer-init
           ev-timer-start
           ev-timer-stop
+          <ev-stat>
           )
   )
 (select-module control.libev)

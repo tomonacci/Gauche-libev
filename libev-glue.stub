@@ -42,6 +42,53 @@ typedef struct ScmEvTimerWatcherRec {
 void Scm_Init_libev_glue(ScmModule*);
 "
 
+(eval*
+  (use text.unicode)
+  (define (slots->decls slots)
+    (append-map
+     (^(slot)
+       (cond-list
+         ((cadr slot) => (cut string-append "static ScmObj " <> "(ScmObj);"))
+         ((caddr slot) => (cut string-append "static void " <> "(ScmObj, ScmObj);"))))
+     slots))
+  (define (watcher-class-decl name slots)
+    (let ((NAME (string-upcase name))
+          (Name (string-titlecase name))
+          (<name> (string->symbol #`"<ev-,|name|>")))
+      `(begin
+         ,#`"
+SCM_CLASS_DECL(Scm_Ev,|Name|Class);
+#define SCM_CLASS_EV_,NAME (&Scm_Ev,|Name|Class)
+#define SCM_EV_,NAME(obj) ((ScmEv,|Name|*)(obj))
+#define SCM_EV_,|NAME|_P(obj) (SCM_XTYPEP(obj, SCM_CLASS_EV_,NAME))
+
+typedef struct ScmEv,|Name|Rec {
+  SCM_HEADER;
+  struct ev_,name ,name;
+} ScmEv,|Name|;
+"
+         ,@(slots->decls slots)
+         (define-cclass ,<name> ,#`"ScmEv,|Name|*" ,#`"Scm_Ev,|Name|Class" (Scm_EvWatcherClass)
+           ,(map
+             (^(slot) `(,(car slot) :getter (c ,(cadr slot)) :setter ,(caddr slot)))
+             slots)
+           )
+         ))))
+
+(eval*
+  (watcher-class-decl "stat"
+    '(
+      (interval "stat_interval_getter" #f)
+      ;(path :type <const-cstring>)
+      (path "stat_path_getter" #f)
+      )))
+
+(define-cfn stat_interval_getter (obj) :static
+  (return (Scm_VMReturnFlonum (ref (-> (SCM_EV_STAT obj) stat) interval))))
+
+(define-cfn stat_path_getter (obj) :static
+  (return (SCM_MAKE_STR_COPYING (ref (-> (SCM_EV_STAT obj) stat) path))))
+
 (define-type <ev-loop> "struct ev_loop*" "ev-loop"
   "EV_LOOP_P" "EV_LOOP_UNBOX" "EV_LOOP_BOX")
 

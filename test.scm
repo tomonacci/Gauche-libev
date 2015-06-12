@@ -14,6 +14,7 @@
 (test* "<ev-watcher>" #t (is-a? <ev-watcher> <class>))
 (test* "ev-signal-new" #t (is-a? (ev-signal-new) <ev-signal-watcher>))
 (test* "ev-timer-new" #t (is-a? (ev-timer-new) <ev-timer-watcher>))
+(test* "<ev-stat>" #t (is-a? <ev-stat> <class>))
 (test* "ev-watcher-active? (inactive)" #f (ev-watcher-active? (ev-timer-new)))
 (test* "ev-watcher-active? (active)" #t
   (let1 timer (ev-timer-new)
