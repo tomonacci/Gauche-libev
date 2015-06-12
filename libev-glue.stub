@@ -81,12 +81,13 @@ typedef struct ScmEv,|Name|Rec {
 (eval*
   ;(for-each (^s (write s) (newline)) (watcher-class-decl "io" ()))
   (watcher-class-decl "io"
-    '(;(fd "io_fd_getter" "io_fd_setter")
+    '((fd "io_fd_getter" #f)
+      (events "io_events_getter" #f)
       )))
 
 (eval*
   (watcher-class-decl "signal"
-    '(;(fd "io_fd_getter" "io_fd_setter")
+    '((signum "signal_signum_getter" #f)
       )))
 
 (eval*
@@ -99,6 +100,15 @@ typedef struct ScmEv,|Name|Rec {
       (interval "stat_interval_getter" #f)
       (path "stat_path_getter" #f)
       )))
+
+(define-cfn io_fd_getter (obj) :static
+  (return (Scm_MakeInteger (ref (-> (SCM_EV_IO obj) io) fd))))
+
+(define-cfn io_events_getter (obj) :static
+  (return (Scm_MakeInteger (ref (-> (SCM_EV_IO obj) io) events))))
+
+(define-cfn signal_signum_getter (obj) :static
+  (return (Scm_MakeInteger (ref (-> (SCM_EV_SIGNAL obj) signal) signum))))
 
 (define-cfn stat_interval_getter (obj) :static
   (return (Scm_VMReturnFlonum (ref (-> (SCM_EV_STAT obj) stat) interval))))
