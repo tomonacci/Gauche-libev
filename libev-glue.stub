@@ -62,7 +62,7 @@ typedef struct ScmEv,|Name|Rec {
            (allocator
              (let* ((w (SCM_OBJ (SCM_NEW ,(string->symbol #`"ScmEv,|Name|")))))
                (SCM_SET_CLASS w ,(string->symbol #`"SCM_CLASS_EV_,NAME"))
-               (ref (-> (,(string->symbol #`"SCM_EV_,NAME") w) ,(string->symbol name)) data)
+               (set! (ref (-> (,(string->symbol #`"SCM_EV_,NAME") w) ,(string->symbol name)) data) w)
                (return w)))
            )
          (define-cfn ,(string->symbol #`",|name|_cb") (loop::(struct ev_loop*) w::(struct ,(string->symbol #`"ev_,|name|*")) revents::int)::void :static
