@@ -19,7 +19,7 @@ SCM_CLASS_DECL(Scm_EvWatcherClass);
 typedef struct ScmEvWatcherRec {
   SCM_HEADER;
   ScmObj callback;
-  struct ev_watcher watcher;
+  struct ev_watcher *watcher;
 } ScmEvWatcher;
 
 void Scm_Init_libev_glue(ScmModule*);
@@ -38,39 +38,52 @@ void Scm_Init_libev_glue(ScmModule*);
     (define (wrap cfn) (and cfn `(c ,cfn)))
     (map (^(slot) `(,(car slot) :getter ,(wrap (cadr slot)) :setter ,(wrap (cadr slot)))) slots))
   (define (watcher-class-decl name slots)
-    (let ((NAME (string-upcase name))
-          (Name (string-titlecase name))
-          (<name> (string->symbol #`"<ev-,|name|>"))
-          (w (string->symbol #`"w::<ev-,|name|>"))
-          )
+    (let* ((NAME (string-upcase name))
+           (Name (string-titlecase name))
+           (name (string->symbol name))
+           (<name> (string->symbol #`"<ev-,|name|>"))
+           (w (string->symbol #`"w::<ev-,|name|>"))
+           (ScmEvName (string->symbol #`"ScmEv,|Name|"))
+           (Scm_EvNameClass (string->symbol #`"Scm_Ev,|Name|Class"))
+           (SCM_CLASS_EV_NAME (string->symbol #`"SCM_CLASS_EV_,NAME"))
+           (SCM_EV_NAME (string->symbol #`"SCM_EV_,NAME"))
+           (ev_name (string->symbol #`"ev_,name"))
+           (ev_name* (string->symbol #`"ev_,|name|*"))
+           (name_cb (string->symbol #`",|name|_cb"))
+           )
       `(begin
          ,#`"
-SCM_CLASS_DECL(Scm_Ev,|Name|Class);
-#define SCM_CLASS_EV_,NAME (&Scm_Ev,|Name|Class)
-#define SCM_EV_,NAME(obj) ((ScmEv,|Name|*)(obj))
-#define SCM_EV_,|NAME|_P(obj) (SCM_XTYPEP(obj, SCM_CLASS_EV_,NAME))
+SCM_CLASS_DECL(,Scm_EvNameClass);
+#define ,SCM_CLASS_EV_NAME (&,Scm_EvNameClass)
+#define ,SCM_EV_NAME(obj) ((ScmEv,|Name|*)(obj))
+#define ,|SCM_EV_NAME|_P(obj) (SCM_XTYPEP(obj, ,SCM_CLASS_EV_NAME))
 
-typedef struct ScmEv,|Name|Rec {
+typedef struct ,|ScmEvName|Rec {
   SCM_HEADER;
   ScmObj callback;
-  struct ev_,name ,name;
-} ScmEv,|Name|;
+  struct ,ev_name *,name;
+} ,ScmEvName;
 "
          ,@(slots->decls slots)
-         (define-cclass ,<name> ,#`"ScmEv,|Name|*" ,#`"Scm_Ev,|Name|Class" (Scm_EvWatcherClass)
+         (define-cfn ,(string->symbol #`",|name|_cb") (loop::(struct ev_loop*) w::(struct ,ev_name*) revents::int)::void :static
+           (unless (Scm_TypeP (SCM_OBJ (-> w data)) SCM_CLASS_EV_WATCHER)
+             (Scm_Error "<ev-watcher> required, but got %S" (SCM_OBJ (-> w data))))
+           (Scm_ApplyRec3 (-> (SCM_EV_WATCHER (-> w data)) callback) (EV_LOOP_BOX loop) (SCM_OBJ (-> w data)) (SCM_MAKE_INT revents)))
+         (define-cclass ,<name> ,#`",|ScmEvName|*" ,(symbol->string Scm_EvNameClass) (Scm_EvWatcherClass)
            ,(slots->specs slots)
            (allocator
-             (let* ((w (SCM_OBJ (SCM_NEW ,(string->symbol #`"ScmEv,|Name|")))))
-               (SCM_SET_CLASS w ,(string->symbol #`"SCM_CLASS_EV_,NAME"))
-               (set! (ref (-> (,(string->symbol #`"SCM_EV_,NAME") w) ,(string->symbol name)) data) w)
+             (let* ((w (SCM_OBJ (SCM_NEW ,ScmEvName))))
+               (SCM_SET_CLASS w ,SCM_CLASS_EV_NAME)
+               (set! (-> (,SCM_EV_NAME w) ,name) (SCM_NEW (struct ,ev_name)))
+               (set! (-> (,SCM_EV_NAME w) ,name data) w)
+               (ev_init (-> (,SCM_EV_NAME w) ,name) ,name_cb)
+               ;(set! (-> (,SCM_EV_NAME w) callback) (SCM_OBJ 0xdeadbeef))
                (return w)))
            )
-         (define-cfn ,(string->symbol #`",|name|_cb") (loop::(struct ev_loop*) w::(struct ,(string->symbol #`"ev_,|name|*")) revents::int)::void :static
-           (Scm_ApplyRec3 (-> (SCM_EV_WATCHER (-> w data)) callback) (EV_LOOP_BOX loop) (SCM_OBJ (-> w data)) (SCM_MAKE_INT revents)))
          (define-cproc ,(string->symbol #`"ev-,|name|-start") (loop::<ev-loop> ,w)::<void>
-           (,(string->symbol #`"ev_,|name|_start") loop (& (-> w ,(string->symbol name)))))
+           (,(string->symbol #`"ev_,|name|_start") loop (-> w ,name)))
          (define-cproc ,(string->symbol #`"ev-,|name|-stop") (loop::<ev-loop> ,w)::<void>
-           (,(string->symbol #`"ev_,|name|_stop") loop (& (-> w ,(string->symbol name)))))
+           (,(string->symbol #`"ev_,|name|_stop") loop (-> w ,name)))
          ))))
 
 (define-type <ev-loop> "struct ev_loop*" "ev-loop"
@@ -102,27 +115,27 @@ typedef struct ScmEv,|Name|Rec {
       )))
 
 (define-cfn io_fd_getter (obj) :static
-  (return (Scm_MakeInteger (ref (-> (SCM_EV_IO obj) io) fd))))
+  (return (Scm_MakeInteger (-> (SCM_EV_IO obj) io fd))))
 
 (define-cfn io_events_getter (obj) :static
-  (return (Scm_MakeInteger (ref (-> (SCM_EV_IO obj) io) events))))
+  (return (Scm_MakeInteger (-> (SCM_EV_IO obj) io events))))
 
 (define-cfn signal_signum_getter (obj) :static
-  (return (Scm_MakeInteger (ref (-> (SCM_EV_SIGNAL obj) signal) signum))))
+  (return (Scm_MakeInteger (-> (SCM_EV_SIGNAL obj) signal signum))))
 
 (define-cfn stat_interval_getter (obj) :static
-  (return (Scm_VMReturnFlonum (ref (-> (SCM_EV_STAT obj) stat) interval))))
+  (return (Scm_VMReturnFlonum (-> (SCM_EV_STAT obj) stat interval))))
 
 (define-cfn stat_path_getter (obj) :static
-  (return (SCM_MAKE_STR_COPYING (ref (-> (SCM_EV_STAT obj) stat) path))))
+  (return (SCM_MAKE_STR_COPYING (-> (SCM_EV_STAT obj) stat path))))
 
 (define-cfn timer_repeat_getter (obj) :static
-  (return (Scm_VMReturnFlonum (ref (-> (SCM_EV_TIMER obj) timer) repeat))))
+  (return (Scm_VMReturnFlonum (-> (SCM_EV_TIMER obj) timer repeat))))
 
 (define-cfn timer_repeat_setter (obj value)::void :static
   (unless (SCM_REALP value)
     (Scm_Error "double required, but got %S" value))
-  (set! (ref (-> (SCM_EV_TIMER obj) timer) repeat) (Scm_GetDouble value)))
+  (set! (-> (SCM_EV_TIMER obj) timer repeat) (Scm_GetDouble value)))
 
 (define-cproc ev-run (loop::<ev-loop>)::<void>
   (ev_run loop 0)
@@ -139,26 +152,26 @@ typedef struct ScmEv,|Name|Rec {
 (define-cproc ev-watcher-active? (watcher)::<boolean>
   (unless (Scm_TypeP watcher SCM_CLASS_EV_WATCHER)
     (Scm_Error "<ev-watcher> required, but got %S" watcher))
-  (return (ev_is_active (& (-> (SCM_EV_WATCHER watcher) watcher)))))
+  (return (ev_is_active (-> (SCM_EV_WATCHER watcher) watcher))))
 
 (define-cproc ev-watcher-pending? (watcher)::<boolean>
   (unless (Scm_TypeP watcher SCM_CLASS_EV_WATCHER)
     (Scm_Error "<ev-watcher> required, but got %S" watcher))
-  (return (ev_is_pending (& (-> (SCM_EV_WATCHER watcher) watcher)))))
+  (return (ev_is_pending (-> (SCM_EV_WATCHER watcher) watcher))))
 
 (define-cproc ev-io-init (w::<ev-io> callback fd::<int> events::<int>)::<void>
   (set! (-> (SCM_EV_IO w) callback) callback)
-  (ev_io_init (& (-> (SCM_EV_IO w) io)) io_cb fd events)
+  (ev_io_set (-> (SCM_EV_IO w) io) fd events)
   )
 
 (define-cproc ev-signal-init (w::<ev-signal> callback signum::<int>)::<void>
   (set! (-> (SCM_EV_SIGNAL w) callback) callback)
-  (ev_signal_init (& (-> (SCM_EV_SIGNAL w) signal)) signal_cb signum)
+  (ev_signal_set (-> (SCM_EV_SIGNAL w) signal) signum)
   )
 
 (define-cproc ev-timer-init (w::<ev-timer> callback after::<real> repeat::<real>)::<void>
   (set! (-> (SCM_EV_TIMER w) callback) callback)
-  (ev_timer_init (& (-> (SCM_EV_TIMER w) timer)) timer_cb after repeat)
+  (ev_timer_set (-> (SCM_EV_TIMER w) timer) after repeat)
   )
 
 (define-constant EV_READ (c "SCM_MAKE_INT(EV_READ)"))
