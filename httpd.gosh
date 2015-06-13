@@ -1,0 +1,131 @@
+(use control.libev)
+(use gauche.collection)
+(use gauche.fcntl)
+(use gauche.net)
+(use gauche.parameter)
+(use gauche.partcont)
+(use gauche.uvector)
+(use picohttpparser)
+(use rfc.uri)
+(use srfi-1)
+(use srfi-19)
+(use sxml.serializer)
+(use text.html-lite :only (html-escape-string))
+(use util.queue)
+(use util.relation)
+(use www.cgi)
+
+(define *loop* #f)
+
+(define (set-nonblocking! port-or-fd)
+  (sys-fcntl port-or-fd F_SETFL (logior (sys-fcntl port-or-fd F_GETFL) O_NONBLOCK)))
+
+(define (setup-response status body)
+  (let* ((gmt (sys-gmtime (sys-time)))
+         (date (sys-strftime "%a, %d %b %Y %H:%M:%S" gmt))
+         (status-message (if (= status 200) "OK" "Not found"))
+         )
+    (string->u8vector
+     #`"HTTP/1.1 ,status ,|status-message|\r\n\
+        Connection: close\r\n\
+        Date: ,date GMT\r\n\
+        Content-Type: text/html\r\n\
+        Content-Length: ,(string-size body)\r\n\r\n,body")
+    )
+  )
+
+(define (request->response request)
+  (case (string->symbol (~ request'method))
+    ((GET)
+     (receive (_ path query _) (uri-decompose-hierarchical (~ request'path))
+       (let1 params (parameterize ((cgi-metavariables `(("REQUEST_METHOD" "GET")
+                                                        ("QUERY_STRING" ,query))))
+                      (cgi-parse-parameters))
+         (cond ((string=? path "/")
+                (values 200 () "<h1>It works!</h1>"))
+               ((string=? path "/echo")
+                (values 200 () (format "<pre>~a</pre>" (html-escape-string (u8vector->string (~ request'buf))))))
+               (else (values 404 () "Not found :|"))))))
+    (else (values 404 () "Not found :|"))))
+
+(define (setup-server port)
+  (define loop *loop*)
+  (define server (make-server-socket 'inet port :reuse-addr? #t))
+  (define ss-watcher (make <ev-io>))
+  (define (process-request ct client input)
+    (define (process-response response)
+      (^(loop watcher revents)
+        (guard (e (else
+                    #?=e
+                    (ev-io-stop loop watcher)
+                    (socket-close client)))
+          (let1 n (socket-send client response)
+            (if (= n (u8vector-length response))
+              (begin
+                ;(format (standard-output-port) "bye(~S): ~S\n" (time-difference (current-time) ct) client)
+                ;(flush (standard-output-port))
+                (ev-io-stop loop watcher)
+                (socket-close client))
+              (set! response (uvector-alias <u8vector> response n)))))))
+
+    (let ((buf (make-u8vector 4096))
+          (len 0)
+          (last-len 0)
+          )
+      (^(loop watcher revents)
+        (reset
+          (guard (e (else
+                      #?=e
+                      (ev-io-stop loop watcher)
+                      (socket-close client)
+                      ))
+            (let1 n (read-uvector! buf input len)
+              (if (eof-object? n)
+                (error "connection closed before finishing the header")
+                (begin
+                  (set! last-len len)
+                  (inc! len n)
+                  (if-let1 request (phr-parse-request buf len last-len)
+                    (receive (status _ body) (request->response request)
+                      (let1 response (setup-response status body)
+                        (ev-io-stop loop watcher)
+                        (ev-io-init watcher (process-response response) (socket-fd client) EV_WRITE)
+                        (ev-io-start loop watcher)
+                        )
+                      )
+                    #f)
+                  ))))))))
+
+  (define (accept-handler loop watcher revents)
+    (let* ((client (socket-accept server))
+           (ct (current-time))
+           (input (socket-input-port client :buffering #f))
+           (cs-watcher (make <ev-io>))
+           )
+      ;(format (standard-output-port) "accepted client: ~S\n" client)
+      ;(flush (standard-output-port))
+      (set-nonblocking! input)
+      (ev-io-init cs-watcher (process-request ct client input) (socket-fd client) EV_READ)
+      (ev-io-start loop cs-watcher)
+      ))
+
+  (ev-io-init
+   ss-watcher
+   accept-handler
+   (socket-fd server)
+   EV_READ)
+  (ev-io-start loop ss-watcher)
+  )
+
+(define (setup-watchdog hz)
+  (let ((timer (make <ev-timer>))
+        (interval (/. 1.0 hz)))
+    (ev-timer-init timer (^(loop watcher revents) (unless (is-a? loop <ev-loop>) (error "not a loop:" loop)) (unless (is-a? watcher <ev-timer>) (error "not a watcher:" watcher))) interval interval)
+    (ev-timer-start *loop* timer)))
+
+(define (main args)
+  (set! *loop* (ev-default-loop 0))
+  (setup-watchdog 100)
+  (setup-server (cadr args))
+  (ev-run *loop*)
+  0)
