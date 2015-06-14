@@ -18,13 +18,12 @@
 #define SERVER_PORT 4567
 #define MAX_BACKLOG 10
 
-// TODO: get rid of all entries for phr_parse_request except for buf, len, and last_len
 struct cs_io {
   struct ev_io io;
   char buf[4096];
   size_t len, last_len;
   int recv_count;
-  char response[8192];
+  char response[4096];
   size_t response_len, response_last_len;
 };
 
@@ -84,56 +83,61 @@ static void setup_response(struct cs_io *cs_w) {
   cs_w->response_len = sizeof response_header - 1 + sprintf(cs_w->response + sizeof response_header - 1, "%4d\r\n\r\n", cs_w->len) + cs_w->len;
   memcpy(cs_w->response + cs_w->response_len - cs_w->len, cs_w->buf, cs_w->len);
   cs_w->response_last_len = 0;
+  assert(cs_w->response_len < 4096);
 }
 
-static void cs_w_cb(EV_P_ struct ev_io *w, int revents) {
-  struct cs_io *cs_w = (struct cs_io *)w;
+static int write_response(struct cs_io *cs_w) {
   ssize_t sret;
 
-  sret = send(w->fd, cs_w->response + cs_w->response_last_len, cs_w->response_len - cs_w->response_last_len, 0);
+  sret = send(cs_w->io.fd, cs_w->response + cs_w->response_last_len, cs_w->response_len - cs_w->response_last_len, 0);
   if (sret < 0) {
     perror("send");
+    if (close(cs_w->io.fd) < 0) {
+      perror("close");
+    }
     exit(EXIT_FAILURE);
   }
   cs_w->response_last_len += sret;
   if (cs_w->response_len == cs_w->response_last_len) {
-    ev_io_stop(EV_A_ w);
-    if (close(w->fd) < 0) {
+    if (close(cs_w->io.fd) < 0) {
       perror("close");
       exit(EXIT_FAILURE);
     }
-    free(w);
+    free(cs_w);
+    return 1;
   }
-  /*
-  printf("request is %d bytes long\n", pret);
-  printf("method is %.*s\n", (int)method_len, method);
-  printf("path is %.*s\n", (int)path_len, path);
-  printf("HTTP version is 1.%d\n", minor_version);
-  printf("headers:\n");
-  for (i = 0; i != num_headers; ++i) {
-      printf("%.*s: %.*s\n", (int)headers[i].name_len, headers[i].name,
-             (int)headers[i].value_len, headers[i].value);
-  }
-  */
+  return 0;
 }
 
-// Process events from clients
-static void cs_r_cb(EV_P_ struct ev_io *w, int revents) {
+static void cs_w_cb(EV_P_ struct ev_io *w, int revents) {
+  if (write_response((struct cs_io *)w)) ev_io_stop(EV_A_ w);
+}
+
+static void init_write(EV_P_ struct cs_io *cs_w) {
+  if (!write_response(cs_w)) {
+    int cs = cs_w->io.fd;
+    ev_io_init(&cs_w->io, cs_w_cb, cs, EV_WRITE);
+    ev_io_start(EV_A_ &cs_w->io);
+  }
+}
+
+static int read_request(struct cs_io *cs_w) {
   const char *method, *path;
   int minor_version;
   struct phr_header headers[100];
   size_t method_len, path_len, num_headers;
-  struct cs_io *cs_w = (struct cs_io *)w;
   int pret;
   ssize_t rret;
 
-  // while (1) {
   /* read the request */
-  rret = recv(w->fd, cs_w->buf + cs_w->len, sizeof cs_w->buf - cs_w->len, MSG_DONTWAIT);
+  rret = recv(cs_w->io.fd, cs_w->buf + cs_w->len, sizeof cs_w->buf - cs_w->len, MSG_DONTWAIT);
   if (rret < 0) {
-    if (errno == EAGAIN || errno == EWOULDBLOCK) return;
-    perror("read");
+    if (errno == EAGAIN || errno == EWOULDBLOCK) return 0;
+    perror("recv");
     exit(EXIT_FAILURE);
+  }
+  if (rret == 0) {
+    return -1;
   }
   cs_w->last_len = cs_w->len;
   cs_w->len += rret;
@@ -153,33 +157,61 @@ static void cs_r_cb(EV_P_ struct ev_io *w, int revents) {
   );
   // puts("finished parsing");
   if (pret > 0) {
-    int cs = w->fd;
     /* successfully parsed the request */
     cs_w->len = pret;
     setup_response(cs_w);
     // printf("response was setup: %d\n", cs_w->response_len);
-    ev_io_stop(EV_A_ w);
-    ev_io_init(w, cs_w_cb, cs, EV_WRITE);
-    ev_io_start(EV_A_ w);
-  } else {
-    if (pret == -1) {
-      puts("parse error");
-      exit(EXIT_FAILURE);
-    }
-    /* request is incomplete, continue the loop */
-    assert(pret == -2);
-    if (cs_w->len == sizeof cs_w->buf) {
-      puts("request is too long");
-      exit(EXIT_FAILURE);
-    }
+    return 1;
   }
-  if (cs_w->recv_count++ >= 500) {
-    fputs("watcher should have stopped!\n", stderr);
-    fflush(stderr);
-    ev_io_stop(EV_A_ w);
-    // exit(EXIT_FAILURE);
+  if (pret == -1) {
+    puts("parse error");
+    exit(EXIT_FAILURE);
   }
-  // }
+  /* request is incomplete, continue the loop */
+  assert(pret == -2);
+  if (cs_w->len == sizeof cs_w->buf) {
+    puts("request is too long");
+    exit(EXIT_FAILURE);
+  }
+  return 0;
+}
+
+// Process events from clients
+static void cs_r_cb(EV_P_ struct ev_io *w, int revents) {
+  switch (read_request((struct cs_io *)w)) {
+    case 0:
+      if (((struct cs_io *)w)->recv_count++ >= 500) {
+        fputs("watcher should have been stopped!\n", stderr);
+        fflush(stderr);
+        ev_io_stop(EV_A_ w);
+      }
+      break;
+    case 1:
+      ev_io_stop(EV_A_ w);
+      init_write(EV_A_ (struct cs_io *)w);
+      break;
+    default:
+      ev_io_stop(EV_A_ w);
+      break;
+  }
+}
+
+static void init_read(EV_P_ struct cs_io *cs_w) {
+  int cs;
+  switch (read_request(cs_w)) {
+    case 0:
+      cs = cs_w->io.fd;
+      ev_io_init(&cs_w->io, cs_r_cb, cs, EV_READ);
+      ev_io_start(EV_A_ &cs_w->io);
+      break;
+    case 1:
+      init_write(EV_A_ cs_w);
+      break;
+    default:
+      fputs("first read was null\n", stderr);
+      fflush(stderr);
+      break;
+  }
 }
 
 // Process connection requests to the server
@@ -198,10 +230,14 @@ static void ss_cb(EV_P_ struct ev_io *w, int revents) {
   fflush(stdout);
   // puts("accepted!");
   cs_w = malloc(sizeof(struct cs_io));
+  if (!cs_w) {
+    puts("out of memory");
+    exit(EXIT_FAILURE);
+  }
   cs_w->len = 0;
   cs_w->recv_count = 0;
-  ev_io_init(&cs_w->io, cs_r_cb, cs, EV_READ);
-  ev_io_start(EV_A_ &cs_w->io);
+  cs_w->io.fd = cs;
+  init_read(EV_A_ cs_w);
 }
 
 int main() {
@@ -250,7 +286,7 @@ int main() {
   ev_io ss_watcher;
   int ss;
   ss = setup_ss();
-  loop = ev_default_loop(0);
+  loop = ev_default_loop(EVBACKEND_EPOLL);
   ev_io_init(&ss_watcher, ss_cb, ss, EV_READ);
   ev_io_start(loop, &ss_watcher);
   ev_loop(loop, 0);
