@@ -46,6 +46,9 @@ libev.$(SOEXT): $(libev_SRCS)
 	$(GAUCHE_PACKAGE) compile \
 	  --local=$(LOCAL_PATHS) --libs=-lev --verbose libev $(libev_SRCS)
 
+httpd: httpd.c
+	gcc -lev -o httpd httpd.c ../Gauche-picohttpparser/picohttpparser/picohttpparser.c
+
 check : all
 	@rm -f test.log
 	$(GOSH) -I. -I$(srcdir) $(srcdir)/test.scm > test.log
