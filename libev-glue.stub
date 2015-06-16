@@ -95,11 +95,14 @@ void Scm_Init_libev_glue(ScmModule*);
         (return watcher))))
   )
 
-(define-cproc ev-io-start (loop::<ev-loop> watcher::<ev-io>)::<void>
+(define-cproc %ev-io-start (watcher::<ev-io> loop::<ev-loop>)::<void>
+  (set! (-> watcher loop) loop_scm)
   (ev_io_start loop (extract io watcher)))
 
-(define-cproc ev-io-stop (loop::<ev-loop> watcher::<ev-io>)::<void>
-  (ev_io_stop loop (extract io watcher)))
+(define-cproc ev-io-stop (watcher::<ev-io>)::<void>
+  (unless (EV_LOOP_P (-> watcher loop))
+    (Scm_Error "no associated <ev-loop> found for %S" watcher))
+  (ev_io_stop (EV_LOOP_UNBOX (-> watcher loop)) (extract io watcher)))
 
 (define-cfn timer_cb (loop::(struct ev_loop*) w::(struct ev_timer*) revents::int)::void :static
   (unless (SCM_EV_TIMER_P (SCM_OBJ (-> w data)))

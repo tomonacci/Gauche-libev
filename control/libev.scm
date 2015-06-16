@@ -30,5 +30,5 @@
 ;; Put your Scheme definitions here
 ;;
 
-
-
+(define (ev-io-start watcher :optional (loop (~ watcher'loop)))
+  (%ev-io-start watcher loop))
