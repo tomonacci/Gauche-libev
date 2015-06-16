@@ -3,6 +3,7 @@
 #include <gauche.h>
 #include <gauche/class.h>
 #include <gauche/extend.h>
+#include <gc.h>
 #include <ev.h>
 
 ScmClass *EvLoopClass;
@@ -179,6 +180,7 @@ typedef struct ,|ScmEvName|Rec {
 
 (define-cfn Scm_Init_libev ()::void
   (let* ((mod::ScmModule*))
+    (ev_set_allocator GC_realloc)
     (SCM_INIT_EXTENSION libev)
     (set! mod (SCM_MODULE (SCM_FIND_MODULE "control.libev" TRUE)))
     (set! EvLoopClass
