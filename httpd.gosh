@@ -29,6 +29,7 @@
      #`"HTTP/1.1 ,status ,|status-message|\r\n\
         Connection: close\r\n\
         Date: ,date GMT\r\n\
+        Server: httpd.gosh\r\n\
         Content-Type: text/html\r\n\
         Content-Length: ,(string-size body)\r\n\r\n,body")
     )
@@ -48,63 +49,73 @@
                (else (values 404 () "Not found :|"))))))
     (else (values 404 () "Not found :|"))))
 
+(define (send-response client response)
+  (let1 n (socket-send client response)
+    (and (not (= n (u8vector-length response))) (uvector-alias <u8vector> response n))))
+
+(define (recv-request client buf last-len)
+  (let* ((n (socket-recv! client (uvector-alias <u8vector> buf last-len)))
+         (len (+ last-len n)))
+    (when (zero? n)
+      (error "connection closed by peer"))
+    (or (phr-parse-request buf len last-len) len)))
+
+(define (log-interaction request status body)
+  (format #t "~a ~d ~d\n" (date->string (time-utc->date (current-time)) "~5.~N~z") status (string-size body))
+  )
+
 (define (setup-server port)
-  (define server (make-server-socket 'inet port :reuse-addr? #t))
+  (define server (make-server-socket 'inet port :backlog 128 :reuse-addr? #t))
   (define ss-watcher (make <ev-io>))
 
-  (define (process-request ct client)
-    (define (process-response response)
-      (^(loop watcher revents)
-        (guard (e (else
-                    #?=(list 'response e)
-                    (ev-io-stop loop watcher)
-                    (socket-close client)))
-          (let1 n (socket-send client response)
-            (if (= n (u8vector-length response))
-              (begin
-                ;(format (standard-output-port) "bye(~S): ~S\n" (time-difference (current-time) ct) client)
-                ;(flush (standard-output-port))
-                (ev-io-stop loop watcher)
-                (socket-close client))
-              (set! response (uvector-alias <u8vector> response n)))))))
+  (define (init-send loop client request watcher)
+    (receive (status _ body) (request->response request)
+      (let1 response (send-response client (setup-response status body))
+        (if response
+          (begin
+            (unless watcher
+              (set! watcher (make <ev-io>)))
+            (ev-io-init watcher
+             (^(loop watcher _)
+               (unless (send-response client response)
+                 (ev-io-stop loop watcher)
+                 (socket-close client)
+                 (log-interaction request status body)
+                 ))
+             (socket-fd client) EV_WRITE))
+          (begin
+            (socket-close client)
+            (log-interaction request status body)))
+        )))
 
-    (let ((buf (make-u8vector 4096))
-          (len 0)
-          (last-len 0)
-          )
-      (^(loop watcher revents)
-        (reset
-          (guard (e (else
-                      #?=(list 'request e)
-                      #?=buf
-                      #?=(ev-io-stop loop #?=watcher)
-                      (socket-close client)
-                      ))
-            (let1 n (socket-recv! client (uvector-alias <u8vector> buf len))
-              (set! last-len len)
-              (inc! len n)
-              (let1 request (phr-parse-request buf len last-len)
-                (when request
-                  (ev-io-stop loop watcher)
-                  (receive (status _ body) (request->response request)
-                    (let1 response (setup-response status body)
-                      (ev-io-init watcher (process-response response) (socket-fd client) EV_WRITE)
-                      (ev-io-start loop watcher)
-                      )
-                    ))))
+  (define (init-recv loop client)
+    (let1 buf (make-u8vector 4096)
+      (set-nonblocking! (socket-fd client))
+      (let1 request (guard (e (else #?=e 0)) (recv-request client buf 0))
+        (if (is-a? request <phr-request>)
+          (init-send loop client request #f)
+          (let1 watcher (make <ev-io>)
+            (ev-io-init watcher
+             (let1 last-len request
+               (^(loop watcher _)
+                 (guard (e (else (ev-io-stop loop watcher) (socket-close client)))
+                   (let1 request (recv-request client buf last-len)
+                     (if (is-a? request <phr-request>)
+                       (begin
+                         (ev-io-stop loop watcher)
+                         (init-send loop client request watcher))
+                       (set! last-len request))
+                     ))))
+             (socket-fd client) EV_READ)
+            (ev-io-start loop watcher)
             )))))
 
   (define (accept-handler loop watcher revents)
-    (let1 client (socket-accept server)
-      (unless client (print "accept(2) would block"))
-      (when client
-        (let ((ct (current-time))
-              (cs-watcher (make <ev-io>))
-              )
-          (set-nonblocking! (socket-fd client))
-          (ev-io-init cs-watcher (process-request ct client) (socket-fd client) EV_READ)
-          (ev-io-start *loop* cs-watcher)
-          ))))
+    (guard (e (else #?=e))
+      (let1 client (socket-accept server)
+        (if client
+          (init-recv loop client)
+          (print "accept(2) would block")))))
 
   (set-nonblocking! (socket-fd server))
   (ev-io-init
@@ -128,6 +139,7 @@
 
 (define (main args)
   (set! *loop* (ev-default-loop 0))
+  (set-signal-handler! SIGINT (^ _ (flush) (exit)))
   (setup-watchdog 5)
   (setup-server (cadr args))
   (ev-run *loop*)
