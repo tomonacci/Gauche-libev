@@ -66,7 +66,7 @@
 
 (define (setup-server port)
   (define server (make-server-socket 'inet port :backlog 128 :reuse-addr? #t))
-  (define ss-watcher (make <ev-io>))
+  (define ss-watcher (make <ev-io> :loop *loop*))
 
   (define (init-send loop client request watcher)
     (receive (status _ body) (request->response request)
@@ -74,15 +74,17 @@
         (if response
           (begin
             (unless watcher
-              (set! watcher (make <ev-io>)))
+              (set! watcher (make <ev-io> :loop loop)))
             (ev-io-init watcher
-             (^(loop watcher _)
+             (^(watcher _)
                (unless (send-response client response)
-                 (ev-io-stop loop watcher)
+                 (ev-io-stop watcher)
                  (socket-close client)
                  (log-interaction request status body)
                  ))
-             (socket-fd client) EV_WRITE))
+             (socket-fd client) EV_WRITE)
+            (ev-io-start watcher)
+            )
           (begin
             (socket-close client)
             (log-interaction request status body)))
@@ -94,27 +96,27 @@
       (let1 request (guard (e (else #?=e 0)) (recv-request client buf 0))
         (if (is-a? request <phr-request>)
           (init-send loop client request #f)
-          (let1 watcher (make <ev-io>)
+          (let1 watcher (make <ev-io> :loop loop)
             (ev-io-init watcher
              (let1 last-len request
-               (^(loop watcher _)
-                 (guard (e (else (ev-io-stop loop watcher) (socket-close client)))
+               (^(watcher _)
+                 (guard (e (else (ev-io-stop watcher) (socket-close client)))
                    (let1 request (recv-request client buf last-len)
                      (if (is-a? request <phr-request>)
                        (begin
-                         (ev-io-stop loop watcher)
+                         (ev-io-stop watcher)
                          (init-send loop client request watcher))
                        (set! last-len request))
                      ))))
              (socket-fd client) EV_READ)
-            (ev-io-start loop watcher)
+            (ev-io-start watcher)
             )))))
 
-  (define (accept-handler loop watcher revents)
+  (define (accept-handler watcher revents)
     (guard (e (else #?=e))
       (let1 client (socket-accept server)
         (if client
-          (init-recv loop client)
+          (init-recv (~ watcher'loop) client)
           (print "accept(2) would block")))))
 
   (set-nonblocking! (socket-fd server))
@@ -123,7 +125,7 @@
    accept-handler
    (socket-fd server)
    EV_READ)
-  (ev-io-start *loop* ss-watcher)
+  (ev-io-start ss-watcher)
   )
 
 (define (setup-watchdog hz)
