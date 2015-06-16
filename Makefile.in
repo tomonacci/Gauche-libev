@@ -47,7 +47,7 @@ libev.$(SOEXT): $(libev_SRCS)
 	  --local=$(LOCAL_PATHS) --libs=-lev --verbose libev $(libev_SRCS)
 
 httpd: httpd.c
-	gcc -lev -o httpd httpd.c ../Gauche-picohttpparser/picohttpparser/picohttpparser.c
+	gcc -Wall -O3 -ggdb -lev -o httpd httpd.c ../Gauche-picohttpparser/picohttpparser/picohttpparser.c
 
 check : all
 	@rm -f test.log
