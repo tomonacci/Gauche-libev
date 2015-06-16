@@ -245,47 +245,6 @@ static void ss_cb(EV_P_ struct ev_io *w, int revents) {
 }
 
 int main() {
-  /*
-  struct cs_io *cs_w = malloc(sizeof(struct cs_io));
-  ssize_t rret, pret;
-  char buf[4096];
-  printf("%d\n", sizeof(struct cs_io));
-  cs_w->len = 0;
-  rret = read(0, cs_w->buf + cs_w->len, sizeof cs_w->buf - cs_w->len);
-  if (rret <= 0) {
-    perror("read");
-    exit(EXIT_FAILURE);
-  }
-  memcpy(buf, cs_w->buf, rret);
-  buf[rret] = '\0';
-  printf("request(%d): %s\n", rret, buf);
-  cs_w->len += rret;
-  cs_w->num_headers = sizeof cs_w->headers / sizeof cs_w->headers[0];
-  pret = phr_parse_request(
-    cs_w->buf,
-    cs_w->len,
-    &cs_w->method,
-    &cs_w->method_len,
-    &cs_w->path,
-    &cs_w->path_len,
-    &cs_w->minor_version,
-    cs_w->headers,
-    &cs_w->num_headers,
-    cs_w->last_len
-  );
-  */
-  /*
-  struct cs_io *cs_w = malloc(sizeof(struct cs_io));
-  printf("%d, %d, %d, %d\n", sizeof cs_w->buf, sizeof cs_w->headers, sizeof cs_w->headers[0], sizeof cs_w->headers / sizeof cs_w->headers[0]);
-  */
-  /*
-  struct cs_io cs_w;
-  cs_w.len = 38;
-  memcpy(cs_w.buf, "Hello, world! Good-bye, good night : )", cs_w.len);
-  setup_response(&cs_w);
-  cs_w.response[cs_w.response_len] = '\0';
-  printf("response(%d): %s\n", cs_w.response_len, cs_w.response);
-  */
   struct ev_loop *loop;
   ev_io ss_watcher;
   int ss;
