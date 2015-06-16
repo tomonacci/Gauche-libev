@@ -19,7 +19,7 @@ SCM_CLASS_DECL(Scm_EvWatcherClass);
 
 typedef struct ScmEvWatcherRec {
   SCM_HEADER;
-  ScmObj callback;
+  ScmObj callback, loop;
   void *watcher;
 } ScmEvWatcher;
 
@@ -42,14 +42,17 @@ void Scm_Init_libev_glue(ScmModule*);
 (define-type <ev-loop> "struct ev_loop*" "ev-loop"
   "EV_LOOP_P" "EV_LOOP_UNBOX" "EV_LOOP_BOX")
 
-(define-cclass <ev-watcher> "ScmEvWatcher*" "Scm_EvWatcherClass" () ((callback)))
+(define-cclass <ev-watcher> "ScmEvWatcher*" "Scm_EvWatcherClass" ()
+  ((callback)
+   (loop :setter #f)
+   ))
 
 (define-cfn io_cb (loop::(struct ev_loop*) w::(struct ev_io*) revents::int)::void :static
   (unless (SCM_EV_IO_P (SCM_OBJ (-> w data)))
     (Scm_Error "<ev-io> required, but got %S" (SCM_OBJ (-> w data))))
   (unless (== (extract io (SCM_OBJ (-> w data))) w)
     (Scm_Error "corrupted <ev-io> %S" (SCM_OBJ (-> w data))))
-  (Scm_ApplyRec3 (-> (SCM_EV_WATCHER (-> w data)) callback) (EV_LOOP_BOX loop) (SCM_OBJ (-> w data)) (Scm_MakeInteger revents)))
+  (Scm_ApplyRec2 (-> (SCM_EV_WATCHER (-> w data)) callback) (SCM_OBJ (-> w data)) (Scm_MakeInteger revents)))
 
 (define-cfn io_fd_getter (obj) :static
   (return (Scm_MakeInteger (-> (extract io obj) fd))))
@@ -62,12 +65,37 @@ void Scm_Init_libev_glue(ScmModule*);
    (events :getter (c "io_events_getter") :setter #f)
    )
   (allocator
-    (let* ((watcher (SCM_OBJ (SCM_NEW ScmEvWatcher))))
-      (SCM_SET_CLASS watcher SCM_CLASS_EV_IO)
-      (set! (-> (SCM_EV_WATCHER watcher) watcher) (SCM_NEW (struct ev_io)))
-      (set! (-> (extract watcher watcher) data) watcher)
-      (ev_init (extract io watcher) io_cb)
-      (return watcher)))
+    ;(Scm_Error "%S" initargs)
+    ;(unless (EV_LOOP_P (Scm_Car initargs))
+    ;  (Scm_Error "loop required"))
+    (let* ((loop (Scm_GetKeyword (SCM_MAKE_KEYWORD "loop") initargs SCM_UNDEFINED))
+           (callback (Scm_GetKeyword (SCM_MAKE_KEYWORD "callback") initargs SCM_UNDEFINED))
+           (fd (Scm_GetKeyword (SCM_MAKE_KEYWORD "fd") initargs SCM_UNDEFINED))
+           (events (Scm_GetKeyword (SCM_MAKE_KEYWORD "events") initargs SCM_UNDEFINED))
+           )
+      (unless (or (SCM_UNDEFINEDP loop) (EV_LOOP_P loop))
+        (Scm_Error ":loop must be an instance of <ev-loop>, but got %S" loop))
+      (if (SCM_UNDEFINEDP fd)
+        (unless (SCM_UNDEFINEDP events)
+          (Scm_Error ":fd and :events must be supplied together, but got only :events"))
+        (begin
+          (when (SCM_UNDEFINEDP events)
+            (Scm_Error ":fd and :events must be supplied together, but got only :fd"))
+          (unless (SCM_INTEGERP fd)
+            (Scm_Error "C integer required, but got %S" fd))
+          (unless (SCM_INTEGERP events)
+            (Scm_Error "C integer required, but got %S" events))
+          ))
+      (let* ((watcher (SCM_OBJ (SCM_NEW ScmEvWatcher))))
+        (SCM_SET_CLASS watcher SCM_CLASS_EV_IO)
+        (set! (-> (SCM_EV_WATCHER watcher) loop) loop)
+        (set! (-> (SCM_EV_WATCHER watcher) callback) callback)
+        (set! (-> (SCM_EV_WATCHER watcher) watcher) (SCM_NEW (struct ev_io)))
+        (set! (-> (extract watcher watcher) data) watcher)
+        (ev_init (extract io watcher) io_cb)
+        (unless (SCM_UNDEFINEDP fd)
+          (ev_io_set (extract io watcher) (Scm_GetInteger fd) (Scm_GetInteger events)))
+        (return watcher))))
   )
 
 (define-cproc ev-io-start (loop::<ev-loop> watcher::<ev-io>)::<void>
