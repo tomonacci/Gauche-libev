@@ -16,7 +16,7 @@
 #include "../Gauche-picohttpparser/picohttpparser/picohttpparser.h"
 
 #define SERVER_PORT 4567
-#define MAX_BACKLOG 10
+#define MAX_BACKLOG 128
 
 struct cs_io {
   struct ev_io io;
@@ -137,6 +137,8 @@ static int read_request(struct cs_io *cs_w) {
     exit(EXIT_FAILURE);
   }
   if (rret == 0) {
+    fprintf(stderr, "connection closed by peer, len = %d\n", sizeof cs_w->buf - cs_w->len);
+    fflush(stderr);
     return -1;
   }
   cs_w->last_len = cs_w->len;
