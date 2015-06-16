@@ -12,6 +12,8 @@ ScmClass *EvLoopClass;
 #define EV_LOOP_UNBOX(obj) SCM_FOREIGN_POINTER_REF(struct ev_loop*, obj)
 #define EV_LOOP_BOX(ptr) Scm_MakeForeignPointer(EvLoopClass, ptr)
 
+static ScmObj default_loop = SCM_UNDEFINED;
+
 SCM_CLASS_DECL(Scm_EvWatcherClass);
 #define SCM_CLASS_EV_WATCHER (&Scm_EvWatcherClass)
 #define SCM_EV_WATCHER(obj) ((ScmEvWatcher*)(obj))
@@ -148,8 +150,13 @@ void Scm_Init_libev_glue(ScmModule*);
     (return loop))
   )
 
-(define-cproc ev-default-loop (flags::<uint>)::<ev-loop>
-  (return (ev_default_loop flags)))
+(define-cproc ev-default-loop (flags::<uint>)
+  (when (SCM_UNDEFINEDP default_loop)
+    (let* ((loop::(struct ev_loop*) (ev_default_loop flags)))
+      (unless loop
+        (Scm_Error "could not initialize the default loop"))
+      (set! default_loop (EV_LOOP_BOX loop))))
+  (return default_loop))
 
 (define-cproc ev-watcher-active? (watcher)::<boolean>
   (unless (Scm_TypeP watcher SCM_CLASS_EV_WATCHER)
