@@ -189,7 +189,7 @@ void Scm_Init_libev_glue(ScmModule*);
     (set! EvLoopClass
       (Scm_MakeForeignPointerClass
        mod "<ev-loop>" NULL NULL
-       (logior SCM_FOREIGN_POINTER_KEEP_IDENTITY SCM_FOREIGN_POINTER_MAP_NULL)))
+       SCM_FOREIGN_POINTER_MAP_NULL))
     (Scm_InitStaticClass (& Scm_EvWatcherClass) "<ev-watcher>" mod NULL 0)
     ; Should take care of this:
     ;   http://lists.schmorp.de/pipermail/libev/2014q4/002462.html
