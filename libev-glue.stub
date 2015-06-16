@@ -39,7 +39,7 @@ void Scm_Init_libev_glue(ScmModule*);
 (define-cise-expr (extract type obj)
   `(cast (struct ,(string->symbol #`"ev_,|type|*")) (-> (SCM_EV_WATCHER ,obj) watcher)))
 
-(define-type <ev-loop> "struct ev_loop*" "ev-loop"
+(define-type <ev-loop> "struct ev_loop*" "<ev-loop>"
   "EV_LOOP_P" "EV_LOOP_UNBOX" "EV_LOOP_BOX")
 
 (define-cclass <ev-watcher> "ScmEvWatcher*" "Scm_EvWatcherClass" ()
