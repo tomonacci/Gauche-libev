@@ -15,15 +15,10 @@
           ev-io-init
           ev-io-start
           ev-io-stop
-          <ev-signal>
-          ev-signal-init
-          ev-signal-start
-          ev-signal-stop
           <ev-timer>
           ev-timer-init
           ev-timer-start
           ev-timer-stop
-          <ev-stat>
           )
   )
 (select-module control.libev)
