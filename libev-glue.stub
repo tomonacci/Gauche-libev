@@ -65,9 +65,6 @@ void Scm_Init_libev_glue(ScmModule*);
    (events :getter (c "io_events_getter") :setter #f)
    )
   (allocator
-    ;(Scm_Error "%S" initargs)
-    ;(unless (EV_LOOP_P (Scm_Car initargs))
-    ;  (Scm_Error "loop required"))
     (let* ((loop (Scm_GetKeyword (SCM_MAKE_KEYWORD "loop") initargs SCM_UNDEFINED))
            (callback (Scm_GetKeyword (SCM_MAKE_KEYWORD "callback") initargs SCM_UNDEFINED))
            (fd (Scm_GetKeyword (SCM_MAKE_KEYWORD "fd") initargs SCM_UNDEFINED))
@@ -128,8 +125,6 @@ void Scm_Init_libev_glue(ScmModule*);
     (let* ((watcher (SCM_OBJ (SCM_NEW ScmEvWatcher))))
       (SCM_SET_CLASS watcher SCM_CLASS_EV_TIMER)
       (set! (-> (SCM_EV_WATCHER watcher) watcher) (SCM_NEW (struct ev_timer)))
-      ;(Scm_GCSentinel (-> (SCM_EV_WATCHER watcher) watcher) "my timer")
-      ;(set! (-> (SCM_EV_WATCHER watcher) watcher) (malloc (sizeof (struct ev_timer))))
       (set! (-> (extract watcher watcher) data) watcher)
       (ev_init (extract timer watcher) timer_cb)
       (return watcher)))
