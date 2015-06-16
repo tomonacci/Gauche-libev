@@ -32,10 +32,6 @@ void die(const char* msg) {
   exit(EXIT_FAILURE);
 }
 
-void setnonblocking(int s) {
-  fcntl(s, F_SETFL, fcntl(s, F_GETFL, 0) | O_NONBLOCK);
-}
-
 // Setup server socket
 int setup_ss() {
   struct sockaddr_in sin;
@@ -93,17 +89,14 @@ static int write_response(struct cs_io *cs_w) {
   sret = send(cs_w->io.fd, cs_w->response + cs_w->response_last_len, cs_w->response_len - cs_w->response_last_len, 0);
   if (sret < 0) {
     perror("send");
-    if (close(cs_w->io.fd) < 0) {
+    if (close(cs_w->io.fd) < 0)
       perror("close");
-    }
     exit(EXIT_FAILURE);
   }
   cs_w->response_last_len += sret;
   if (cs_w->response_len == cs_w->response_last_len) {
-    if (close(cs_w->io.fd) < 0) {
-      perror("close");
-      exit(EXIT_FAILURE);
-    }
+    if (close(cs_w->io.fd) < 0)
+      die("close");
     free(cs_w);
     return 1;
   }
@@ -134,9 +127,9 @@ static int read_request(struct cs_io *cs_w) {
   /* read the request */
   rret = recv(cs_w->io.fd, cs_w->buf + cs_w->len, sizeof cs_w->buf - cs_w->len, MSG_DONTWAIT);
   if (rret < 0) {
-    if (errno == EAGAIN || errno == EWOULDBLOCK) return 0;
-    perror("recv");
-    exit(EXIT_FAILURE);
+    if (errno == EAGAIN || errno == EWOULDBLOCK)
+      return 0;
+    die("recv");
   }
   if (rret == 0) {
     fprintf(stderr, "connection closed by peer, len = %d\n", sizeof cs_w->buf - cs_w->len);
