@@ -86,6 +86,7 @@ static void setup_response(struct cs_io *cs_w) {
   assert(cs_w->response_len < 4096);
 }
 
+// returns 1 if finished sending, 0 otherwise
 static int write_response(struct cs_io *cs_w) {
   ssize_t sret;
 
@@ -121,6 +122,7 @@ static void init_write(EV_P_ struct cs_io *cs_w) {
   }
 }
 
+// returns 1 on successful parsing, 0 on parsing incomplete, -1 on connection close
 static int read_request(struct cs_io *cs_w) {
   const char *method, *path;
   int minor_version;
