@@ -49,7 +49,6 @@
     (else (values 404 () "Not found :|"))))
 
 (define (setup-server port)
-  (define loop *loop*)
   (define server (make-server-socket 'inet port :reuse-addr? #t))
   (define ss-watcher (make <ev-io>))
   (define (process-request ct client input)
@@ -114,18 +113,23 @@
    accept-handler
    (socket-fd server)
    EV_READ)
-  (ev-io-start loop ss-watcher)
+  (ev-io-start *loop* ss-watcher)
   )
 
 (define (setup-watchdog hz)
   (let ((timer (make <ev-timer>))
         (interval (/. 1.0 hz)))
-    (ev-timer-init timer (^(loop watcher revents) (unless (is-a? loop <ev-loop>) (error "not a loop:" loop)) (unless (is-a? watcher <ev-timer>) (error "not a watcher:" watcher))) interval interval)
+    (ev-timer-init timer
+     (^(loop watcher revents)
+       (unless (is-a? loop <ev-loop>) (error "not a loop:" loop))
+       (unless (is-a? watcher <ev-timer>) (error "not a watcher:" watcher))
+       )
+     interval interval)
     (ev-timer-start *loop* timer)))
 
 (define (main args)
   (set! *loop* (ev-default-loop 0))
-  (setup-watchdog 100)
+  (setup-watchdog 5)
   (setup-server (cadr args))
   (ev-run *loop*)
   0)
