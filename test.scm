@@ -33,6 +33,24 @@
         (set! (~ watcher'loop) (ev-default-loop 0))
         #f
         ))))
+(test* "fd (ro slot)" #t
+  (let1 watcher (make <ev-io> :fd 5 :events 0)
+    (and
+      (= (~ watcher'fd) 5)
+      (guard (e (else #t))
+        (set! (~ watcher'fd) 0)
+        #f
+        ))))
+(test* "events (ro slot)" #t
+  (let1 watcher (make <ev-io> :fd 0 :events EV_WRITE)
+    (and
+      (logtest (~ watcher'events) EV_WRITE)
+      (guard (e (else #t))
+        (set! (~ watcher'events) EV_READ)
+        #f
+        ))))
+(test* "ev-io-init" (undefined)
+  (ev-io-init (make <ev-io>) (^ _) 0 EV_READ))
 (test* "ev-io-start (pre-set loop)" #t
   (let1 watcher (make <ev-io> :loop (ev-default-loop 0))
     (ev-io-init watcher (^ _) 0 EV_READ)
