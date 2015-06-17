@@ -97,6 +97,9 @@ void Scm_Init_libev_glue(ScmModule*);
         (return watcher))))
   )
 
+(define-cproc ev-io-set (watcher::<ev-io> fd::<int> events::<int>)::<void>
+  (ev_io_set (extract io watcher) fd events))
+
 (define-cproc %ev-io-start (watcher::<ev-io> loop::<ev-loop>)::<void>
   (set! (-> watcher loop) loop_scm)
   (ev_io_start loop (extract io watcher)))

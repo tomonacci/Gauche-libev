@@ -49,6 +49,10 @@
         (set! (~ watcher'events) EV_READ)
         #f
         ))))
+(test* "ev-io-set" (list 7 129)
+  (let1 watcher (make <ev-io>)
+    (ev-io-set watcher 7 EV_READ)
+    (list (~ watcher'fd) (~ watcher'events))))
 (test* "ev-io-init" (undefined)
   (ev-io-init (make <ev-io>) (^ _) 0 EV_READ))
 (test* "ev-io-start (pre-set loop)" #t

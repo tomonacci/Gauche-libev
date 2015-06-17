@@ -13,6 +13,7 @@
           ev-watcher-pending?
           <ev-io>
           ev-io-init
+          ev-io-set
           ev-io-start
           ev-io-stop
           <ev-timer>
