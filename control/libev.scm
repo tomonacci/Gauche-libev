@@ -38,11 +38,11 @@
     (%ev-watcher-clear-pending loop-or-watcher watcher)))
 
 (define (ev-io-start . args)
-  (let* ((loop (if (is-a? (car args) <ev-loop>) (pop! args) #f))
+  (let* ((loop (and (is-a? (car args) <ev-loop>) (pop! args)))
          (watcher (pop! args)))
     (when (not (or (null? args) (keyword? (car args))))
       (set! (~ watcher'callback) (pop! args)))
-    (when (null? args)
+    (unless (null? args)
       (let ((%fd
              (if (keyword? (car args))
                (~ watcher'fd)
@@ -53,7 +53,8 @@
                (pop! args)))
             )
         (let-keywords args ((fd %fd) (events %events))
-          (ev-watcher-clear-pending watcher)
+          (when (ev-watcher-active? watcher)
+            (ev-io-stop watcher))
           (ev-io-set watcher fd events)
           )))
     (%ev-io-start (or loop (~ watcher'loop)) watcher)))
