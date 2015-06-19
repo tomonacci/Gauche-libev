@@ -33,3 +33,8 @@
 
 (define (ev-io-start watcher :optional (loop (~ watcher'loop)))
   (%ev-io-start watcher loop))
+
+(define (ev-timer-start . args)
+  (let* ((loop (and (is-a? (car args) <ev-loop>) (pop! args)))
+         (watcher (pop! args)))
+    (%ev-timer-start (or loop (~ watcher'loop)) watcher)))

@@ -83,6 +83,23 @@
       #f)))
 
 (test* "make <ev-timer>" #t (is-a? (make <ev-timer>) <ev-timer>))
+(test* "ev-timer-start (pre-set loop)" #t
+  (let1 watcher (make <ev-timer> :loop (ev-default-loop 0))
+    (ev-timer-init watcher (^ _) 0 EV_READ)
+    (ev-timer-start watcher)
+    #t))
+(test* "ev-timer-start (with loop)" #t
+  (let ((watcher (make <ev-timer>))
+        (loop (ev-default-loop 0)))
+    (ev-timer-init watcher (^ _) 0 EV_READ)
+    (ev-timer-start loop watcher)
+    (eq? (~ watcher'loop) loop)))
+(test* "ev-timer-start (without loop)" #t
+  (let1 watcher (make <ev-timer>)
+    (ev-timer-init watcher (^ _) 0 EV_READ)
+    (guard (e (else #t))
+      (ev-timer-start watcher)
+      #f)))
 (test* "ev-watcher-active? (inactive)" #f (ev-watcher-active? (make <ev-timer>)))
 (test* "ev-watcher-active? (active)" #t
   (let1 timer (make <ev-timer>)

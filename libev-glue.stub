@@ -130,19 +130,25 @@ void Scm_Init_libev_glue(ScmModule*);
   ((repeat :getter (c "timer_repeat_getter") :setter (c "timer_repeat_setter"))
    )
   (allocator
-    (let* ((watcher (SCM_OBJ (SCM_NEW ScmEvWatcher))))
-      (SCM_SET_CLASS watcher SCM_CLASS_EV_TIMER)
-      (set! (-> (SCM_EV_WATCHER watcher) watcher) (SCM_NEW (struct ev_timer)))
-      (set! (-> (extract watcher watcher) data) watcher)
-      (ev_init (extract timer watcher) timer_cb)
-      (return watcher)))
+    (let* ((loop (Scm_GetKeyword (SCM_MAKE_KEYWORD "loop") initargs SCM_UNDEFINED))
+           )
+      (let* ((watcher (SCM_OBJ (SCM_NEW ScmEvWatcher))))
+        (SCM_SET_CLASS watcher SCM_CLASS_EV_TIMER)
+        (set! (-> (SCM_EV_WATCHER watcher) loop) loop)
+        (set! (-> (SCM_EV_WATCHER watcher) watcher) (SCM_NEW (struct ev_timer)))
+        (set! (-> (extract watcher watcher) data) watcher)
+        (ev_init (extract timer watcher) timer_cb)
+        (return watcher))))
   )
 
-(define-cproc ev-timer-start (loop::<ev-loop> watcher::<ev-timer>)::<void>
+(define-cproc %ev-timer-start (loop::<ev-loop> watcher::<ev-timer>)::<void>
+  (set! (-> watcher loop) loop_scm)
   (ev_timer_start loop (extract timer watcher)))
 
-(define-cproc ev-timer-stop (loop::<ev-loop> watcher::<ev-timer>)::<void>
-  (ev_timer_stop loop (extract timer watcher)))
+(define-cproc ev-timer-stop (watcher::<ev-timer>)::<void>
+  (unless (EV_LOOP_P (-> watcher loop))
+    (Scm_Error "no associated <ev-loop> found for %S" watcher))
+  (ev_timer_stop (EV_LOOP_UNBOX (-> watcher loop)) (extract timer watcher)))
 
 (define-cproc ev-run (loop::<ev-loop>)::<void>
   (ev_run loop 0)
