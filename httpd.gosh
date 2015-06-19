@@ -91,26 +91,20 @@
         )))
 
   (define (init-recv loop client)
-    (let1 buf (make-u8vector 4096)
+    (let ((buf (make-u8vector 4096))
+          (last-len 0))
+      (define (callback watcher revents)
+        (let1 request (guard (e (else #?=e (ev-io-stop watcher) (socket-close client)))
+                        (recv-request client buf last-len))
+          (if (is-a? request <phr-request>)
+            (init-send client request watcher)
+            (begin
+              (unless watcher
+                (ev-io-start loop (make <ev-io>) callback (socket-close client) EV_READ))
+              (set! last-len request)))))
       (set-nonblocking! (socket-fd client))
-      (let1 request (guard (e (else #?=e 0)) (recv-request client buf 0))
-        (if (is-a? request <phr-request>)
-          (init-send loop client request #f)
-          (let1 watcher (make <ev-io> :loop loop)
-            (ev-io-init watcher
-             (let1 last-len request
-               (^(watcher _)
-                 (guard (e (else (ev-io-stop watcher) (socket-close client)))
-                   (let1 request (recv-request client buf last-len)
-                     (if (is-a? request <phr-request>)
-                       (begin
-                         (ev-io-stop watcher)
-                         (init-send loop client request watcher))
-                       (set! last-len request))
-                     ))))
-             (socket-fd client) EV_READ)
-            (ev-io-start watcher)
-            )))))
+      (callback #f 0)
+      ))
 
   (define (accept-handler watcher revents)
     (guard (e (else #?=e))
