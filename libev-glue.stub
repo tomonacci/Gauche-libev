@@ -116,7 +116,7 @@ void Scm_Init_libev_glue(ScmModule*);
     (Scm_Error "corrupted <ev-timer>: %S" (SCM_OBJ (-> w data))))
   (unless (SCM_CLOSUREP (-> (SCM_EV_WATCHER (-> w data)) callback))
     (Scm_Error "not a closure: %S" (SCM_OBJ (-> w data))))
-  (Scm_ApplyRec3 (-> (SCM_EV_WATCHER (-> w data)) callback) (EV_LOOP_BOX loop) (SCM_OBJ (-> w data)) (Scm_MakeInteger revents)))
+  (Scm_ApplyRec2 (-> (SCM_EV_WATCHER (-> w data)) callback) (SCM_OBJ (-> w data)) (Scm_MakeInteger revents)))
 
 (define-cfn timer_repeat_getter (obj) :static
   (return (Scm_VMReturnFlonum (-> (extract timer obj) repeat))))
