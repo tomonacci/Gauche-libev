@@ -100,7 +100,7 @@ void Scm_Init_libev_glue(ScmModule*);
 (define-cproc ev-io-set (watcher::<ev-io> fd::<int> events::<int>)::<void>
   (ev_io_set (extract io watcher) fd events))
 
-(define-cproc %ev-io-start (watcher::<ev-io> loop::<ev-loop>)::<void>
+(define-cproc %ev-io-start (loop::<ev-loop> watcher::<ev-io>)::<void>
   (set! (-> watcher loop) loop_scm)
   (ev_io_start loop (extract io watcher)))
 
@@ -170,6 +170,11 @@ void Scm_Init_libev_glue(ScmModule*);
   (unless (Scm_TypeP watcher SCM_CLASS_EV_WATCHER)
     (Scm_Error "<ev-watcher> required, but got %S" watcher))
   (return (ev_is_pending (extract watcher watcher))))
+
+(define-cproc %ev-watcher-clear-pending (loop::<ev-loop> watcher)::<int>
+  (unless (Scm_TypeP watcher SCM_CLASS_EV_WATCHER)
+    (Scm_Error "<ev-watcher> required, but got %S" watcher))
+  (return (ev_clear_pending loop (extract watcher watcher))))
 
 (define-cproc ev-io-init (w::<ev-io> callback fd::<int> events::<int>)::<void>
   (set! (-> (SCM_EV_IO w) callback) callback)

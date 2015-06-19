@@ -68,7 +68,7 @@
   (define server (make-server-socket 'inet port :backlog 128 :reuse-addr? #t))
   (define ss-watcher (make <ev-io> :loop *loop*))
 
-  (define (init-send loop client request watcher)
+  (define (init-send client request watcher)
     (receive (status _ body) (request->response request)
       (let1 response (send-response client (setup-response status body))
         (if response

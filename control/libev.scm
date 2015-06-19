@@ -11,6 +11,7 @@
           <ev-watcher>
           ev-watcher-active?
           ev-watcher-pending?
+          ev-watcher-clear-pending
           <ev-io>
           ev-io-init
           ev-io-set
@@ -31,5 +32,28 @@
 ;; Put your Scheme definitions here
 ;;
 
-(define (ev-io-start watcher :optional (loop (~ watcher'loop)))
-  (%ev-io-start watcher loop))
+(define (ev-watcher-clear-pending loop-or-watcher :optional watcher)
+  (if (undefined? watcher)
+    (%ev-watcher-clear-pending (~ loop-or-watcher'loop) loop-or-watcher)
+    (%ev-watcher-clear-pending loop-or-watcher watcher)))
+
+(define (ev-io-start . args)
+  (let* ((loop (if (is-a? (car args) <ev-loop>) (pop! args) #f))
+         (watcher (pop! args)))
+    (when (not (or (null? args) (keyword? (car args))))
+      (set! (~ watcher'callback) (pop! args)))
+    (when (null? args)
+      (let ((%fd
+             (if (keyword? (car args))
+               (~ watcher'fd)
+               (pop! args)))
+            (%events
+             (if (or (null? args) (keyword? (car args)))
+               (~ watcher'events)
+               (pop! args)))
+            )
+        (let-keywords args ((fd %fd) (events %events))
+          (ev-watcher-clear-pending watcher)
+          (ev-io-set watcher fd events)
+          )))
+    (%ev-io-start (or loop (~ watcher'loop)) watcher)))
