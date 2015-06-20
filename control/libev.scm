@@ -3,11 +3,13 @@
 ;;;
 
 (define-module control.libev
+  (use gauche.parameter)
   (export EV_READ EV_WRITE
           <ev-loop>
           ev-default-loop
           ev-loop-new
           ev-run
+          ev-thread-local-loop
           <ev-watcher>
           ev-watcher-active?
           ev-watcher-pending?
@@ -31,6 +33,17 @@
 ;;
 ;; Put your Scheme definitions here
 ;;
+
+(define ev-thread-local-loop
+  (make-parameter (undefined)))
+
+(define-method slot-unbound ((class <class>) (watcher <ev-watcher>) slot)
+  (if (eq? slot 'loop)
+    (let1 loop (ev-thread-local-loop)
+      (if (is-a? loop <ev-loop>)
+        loop
+        (next-method)))
+    (next-method)))
 
 (define (ev-watcher-clear-pending loop-or-watcher :optional watcher)
   (if (undefined? watcher)
