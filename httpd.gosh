@@ -1,0 +1,160 @@
+(use control.libev)
+(use gauche.collection)
+(use gauche.fcntl)
+(use gauche.net)
+(use gauche.parameter)
+(use gauche.partcont)
+(use gauche.uvector)
+(use picohttpparser)
+(use rfc.uri)
+(use srfi-1)
+(use srfi-19)
+(use sxml.serializer)
+(use text.html-lite :only (html-escape-string))
+(use util.queue)
+(use util.relation)
+(use www.cgi)
+
+(define *loop* #f)
+
+(define (set-nonblocking! port-or-fd)
+  (sys-fcntl port-or-fd F_SETFL (logior (sys-fcntl port-or-fd F_GETFL) O_NONBLOCK)))
+
+(define (setup-response status body)
+  (let* ((gmt (sys-gmtime (sys-time)))
+         (date (sys-strftime "%a, %d %b %Y %H:%M:%S" gmt))
+         (status-message (if (= status 200) "OK" "Not found"))
+         )
+    (string->u8vector
+     #`"HTTP/1.1 ,status ,|status-message|\r\n\
+        Connection: close\r\n\
+        Date: ,date GMT\r\n\
+        Server: httpd.gosh\r\n\
+        Content-Type: text/html\r\n\
+        Content-Length: ,(string-size body)\r\n\r\n,body")
+    )
+  )
+
+(define (request->response request)
+  (case (string->symbol (~ request'method))
+    ((GET)
+     (receive (_ path query _) (uri-decompose-hierarchical (~ request'path))
+       (let1 params (parameterize ((cgi-metavariables `(("REQUEST_METHOD" "GET")
+                                                        ("QUERY_STRING" ,query))))
+                      (cgi-parse-parameters))
+         (cond ((string=? path "/")
+                (values 200 () "<h1>It works!</h1>"))
+               ((string=? path "/echo")
+                (values 200 () (format "<pre>~a</pre>" (html-escape-string (u8vector->string (~ request'buf))))))
+               (else (values 404 () "Not found :|"))))))
+    (else (values 404 () "Not found :|"))))
+
+(define (send-response client response)
+  (let1 n (socket-send client response)
+    (and (not (= n (u8vector-length response))) (uvector-alias <u8vector> response n))))
+
+(define-class <client> ()
+  ((socket :init-keyword :socket)
+   (watcher :init-keyword :watcher :init-value #f)
+   ))
+
+(define (client-start client callback events)
+  (unless (~ client'watcher)
+    (set! (~ client'watcher) (make <ev-io>)))
+  (ev-io-start (~ client'watcher) callback (socket-fd (~ client'socket)) events))
+
+(define (client-yield client callback events)
+  (shift continue
+    (client-start client (lambda #f (continue (callback))) events)))
+
+(define (client-finish client)
+  (let1 watcher (~ client'watcher)
+    (when (and watcher (ev-watcher-active? watcher))
+      (ev-io-stop watcher)))
+  (socket-close (~ client'socket)))
+
+(define (client-recv client buf last-len)
+  (define (recv!)
+    (guard (e ((and (condition-has-type? e <system-error>)
+                    (= (~ e'errno) EAGAIN))
+               #f))
+      (socket-recv! (~ client'socket) (uvector-alias <u8vector> buf last-len))))
+  (let repeat ()
+    (or (recv!) (client-yield client repeat EV_READ))))
+
+(define (client-send client buf)
+  (define (send)
+    (guard (e ((and (condition-has-type? e <system-error>)
+                    (= (~ e'errno) EAGAIN))
+               #f))
+      (socket-send (~ client'socket) buf)))
+  (let repeat ()
+    (or (send) (client-yield client repeat EV_WRITE))))
+
+(define (log-interaction request status body)
+  (format #t "~a ~d ~d\n" (date->string (time-utc->date (current-time)) "~5.~N~z") status (u8vector-length body))
+  )
+
+(define (setup-server port)
+  (define (init-send client request)
+    (receive (status _ body) (request->response request)
+      (let repeat ((body (string->u8vector body)))
+        (let1 n (client-send client body)
+          (if (= n (u8vector-length body))
+            (begin
+              (log-interaction request status body)
+              (client-finish client)
+              )
+            (repeat (uvector-alias <u8vector> body n)))))))
+
+  (define (init-recv client)
+    (let ((buf (make-u8vector 4096))
+          (last-len 0))
+      (let repeat ((last-len 0))
+        (guard (e (else
+                    #?=e
+                    (client-finish client)))
+          (let* ((n (client-recv client buf last-len))
+                 (len (+ last-len n))
+                 )
+            (if (zero? n)
+              (client-finish client)
+              (if-let1 request (phr-parse-request buf len last-len)
+                (init-send client request)
+                (repeat len))))))))
+
+  (define (accept-handler watcher revents)
+    (guard (e (else #?=e))
+      (let1 client (socket-accept server)
+        (if client
+          (begin
+            (set-nonblocking! (socket-fd client))
+            (init-recv (make <client> :socket client))
+            )
+          (print "accept(2) would block")))))
+
+  (define server (make-server-socket 'inet port :backlog 128 :reuse-addr? #t))
+
+  (set-nonblocking! (socket-fd server))
+  (ev-io-start (make <ev-io>) accept-handler (socket-fd server) EV_READ)
+  )
+
+(define (setup-watchdog hz)
+  (let ((timer (make <ev-timer>))
+        (interval (/. 1.0 hz)))
+    (ev-timer-init timer
+     (^(loop watcher revents)
+       (unless (is-a? loop <ev-loop>) (error "not a loop:" loop))
+       (unless (is-a? watcher <ev-timer>) (error "not a watcher:" watcher))
+       )
+     interval interval)
+    (ev-timer-start *loop* timer)))
+
+(define (main args)
+  (set! *loop* (ev-default-loop 0))
+  (ev-thread-local-loop (ev-default-loop 0))
+  (set-signal-handler! SIGINT (^ _ (flush) (exit)))
+  (setup-watchdog 5)
+  (setup-server (cadr args))
+  (ev-run *loop*)
+  0)
