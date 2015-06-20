@@ -90,20 +90,19 @@
     (or (send) (client-yield client repeat EV_WRITE))))
 
 (define (log-interaction request status body)
-  (format #t "~a ~d ~d\n" (date->string (time-utc->date (current-time)) "~5.~N~z") status (u8vector-length body))
-  )
+  (format #t "~a ~d ~d\n" (date->string (time-utc->date (current-time)) "~5.~N~z") status (string-size body)))
 
 (define (setup-server port)
   (define (init-send client request)
     (receive (status _ body) (request->response request)
-      (let repeat ((body (string->u8vector body)))
-        (let1 n (client-send client body)
-          (if (= n (u8vector-length body))
+      (let repeat ((response (setup-response status body)))
+        (let1 n (client-send client response)
+          (if (= n (u8vector-length response))
             (begin
               (log-interaction request status body)
               (client-finish client)
               )
-            (repeat (uvector-alias <u8vector> body n)))))))
+            (repeat (uvector-alias <u8vector> response n)))))))
 
   (define (init-recv client)
     (let ((buf (make-u8vector 4096))
