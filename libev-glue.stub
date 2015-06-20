@@ -158,10 +158,9 @@ void Scm_Init_libev_glue(ScmModule*);
 
 (define-cproc ev-loop-new (flags::<uint>)::<ev-loop>
   (let* ((loop::(struct ev_loop*) (ev_loop_new flags)))
-    (return loop))
-  )
+    (return loop)))
 
-(define-cproc ev-default-loop (flags::<uint>)
+(define-cproc ev-default-loop (:optional (flags::<uint> 0))
   (when (SCM_UNDEFINEDP default_loop)
     (let* ((loop::(struct ev_loop*) (ev_default_loop flags)))
       (unless loop

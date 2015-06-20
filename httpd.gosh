@@ -142,7 +142,7 @@
     (ev-timer-start (make <ev-timer>) (lambda #f) interval interval)))
 
 (define (main args)
-  (ev-thread-local-loop (ev-default-loop 0))
+  (ev-thread-local-loop (ev-default-loop))
   (set-signal-handler! SIGINT (^ _ (flush) (exit)))
   (setup-watchdog 5)
   (setup-server (cadr args))
