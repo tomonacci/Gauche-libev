@@ -64,7 +64,7 @@
   (let ((watcher (make <ev-io>))
         (loop (ev-default-loop 0)))
     (ev-io-init watcher (^ _) 0 EV_READ)
-    (ev-io-start watcher loop)
+    (ev-io-start loop watcher)
     (eq? (~ watcher'loop) loop)))
 (test* "ev-io-start (without loop)" #t
   (let1 watcher (make <ev-io>)
@@ -106,6 +106,9 @@
     (ev-timer-init timer values 0 0)
     (ev-timer-start (ev-default-loop 0) timer)
     (ev-watcher-active? timer)))
+(test* "ev-watcher-clear-pending" 0
+  (let1 timer (make <ev-io> :loop (ev-default-loop 0))
+    (ev-watcher-clear-pending timer)))
 (test* "constants" #t (and (integer? EV_READ) (integer? EV_WRITE)))
 
 ;; If you don't want `gosh' to exit with nonzero status even if

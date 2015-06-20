@@ -53,73 +53,90 @@
   (let1 n (socket-send client response)
     (and (not (= n (u8vector-length response))) (uvector-alias <u8vector> response n))))
 
-(define (recv-request client buf last-len)
-  (let* ((n (socket-recv! client (uvector-alias <u8vector> buf last-len)))
-         (len (+ last-len n)))
-    (when (zero? n)
-      (error "connection closed by peer"))
-    (or (phr-parse-request buf len last-len) len)))
+(define-class <client> ()
+  ((socket :init-keyword :socket)
+   (watcher :init-keyword :watcher :init-value #f)
+   ))
+
+(define (client-start client callback events)
+  (unless (~ client'watcher)
+    (set! (~ client'watcher) (make <ev-io>)))
+  (ev-io-start (~ client'watcher) callback (socket-fd (~ client'socket)) events))
+
+(define (client-yield client callback events)
+  (shift continue
+    (client-start client (lambda #f (continue (callback))) events)))
+
+(define (client-finish client)
+  (let1 watcher (~ client'watcher)
+    (when (and watcher (ev-watcher-active? watcher))
+      (ev-io-stop watcher)))
+  (socket-close (~ client'socket)))
+
+(define (client-recv client buf last-len)
+  (define (recv!)
+    (guard (e ((and (condition-has-type? e <system-error>)
+                    (= (~ e'errno) EAGAIN))
+               #f))
+      (socket-recv! (~ client'socket) (uvector-alias <u8vector> buf last-len))))
+  (let repeat ()
+    (or (recv!) (client-yield client repeat EV_READ))))
+
+(define (client-send client buf)
+  (define (send)
+    (guard (e ((and (condition-has-type? e <system-error>)
+                    (= (~ e'errno) EAGAIN))
+               #f))
+      (socket-send (~ client'socket) buf)))
+  (let repeat ()
+    (or (send) (client-yield client repeat EV_WRITE))))
 
 (define (log-interaction request status body)
-  (format #t "~a ~d ~d\n" (date->string (time-utc->date (current-time)) "~5.~N~z") status (string-size body))
+  (format #t "~a ~d ~d\n" (date->string (time-utc->date (current-time)) "~5.~N~z") status (u8vector-length body))
   )
 
 (define (setup-server port)
-  (define server (make-server-socket 'inet port :backlog 128 :reuse-addr? #t))
-  (define ss-watcher (make <ev-io> :loop *loop*))
-
-  (define (init-send loop client request watcher)
+  (define (init-send client request)
     (receive (status _ body) (request->response request)
-      (let1 response (send-response client (setup-response status body))
-        (if response
-          (begin
-            (unless watcher
-              (set! watcher (make <ev-io> :loop loop)))
-            (ev-io-init watcher
-             (^(watcher _)
-               (unless (send-response client response)
-                 (ev-io-stop watcher)
-                 (socket-close client)
-                 (log-interaction request status body)
-                 ))
-             (socket-fd client) EV_WRITE)
-            (ev-io-start watcher)
-            )
-          (begin
-            (socket-close client)
-            (log-interaction request status body)))
-        )))
+      (let repeat ((body (string->u8vector body)))
+        (let1 n (client-send client body)
+          (if (= n (u8vector-length body))
+            (begin
+              (log-interaction request status body)
+              (client-finish client)
+              )
+            (repeat (uvector-alias <u8vector> body n)))))))
 
-  (define (init-recv loop client)
+  (define (init-recv client)
     (let ((buf (make-u8vector 4096))
           (last-len 0))
-      (define (callback watcher revents)
-        (let1 request (guard (e (else #?=e (ev-io-stop watcher) (socket-close client)))
-                        (recv-request client buf last-len))
-          (if (is-a? request <phr-request>)
-            (init-send client request watcher)
-            (begin
-              (unless watcher
-                (ev-io-start loop (make <ev-io>) callback (socket-close client) EV_READ))
-              (set! last-len request)))))
-      (set-nonblocking! (socket-fd client))
-      (callback #f 0)
-      ))
+      (let repeat ((last-len 0))
+        (guard (e (else
+                    #?=e
+                    (client-finish client)))
+          (let* ((n (client-recv client buf last-len))
+                 (len (+ last-len n))
+                 )
+            (if (zero? n)
+              (client-finish client)
+              (if-let1 request (phr-parse-request buf len last-len)
+                (init-send client request)
+                (repeat len))))))))
 
   (define (accept-handler watcher revents)
     (guard (e (else #?=e))
       (let1 client (socket-accept server)
         (if client
-          (init-recv (~ watcher'loop) client)
+          (begin
+            (set-nonblocking! (socket-fd client))
+            (init-recv (make <client> :socket client))
+            )
           (print "accept(2) would block")))))
 
+  (define server (make-server-socket 'inet port :backlog 128 :reuse-addr? #t))
+
   (set-nonblocking! (socket-fd server))
-  (ev-io-init
-   ss-watcher
-   accept-handler
-   (socket-fd server)
-   EV_READ)
-  (ev-io-start ss-watcher)
+  (ev-io-start (make <ev-io>) accept-handler (socket-fd server) EV_READ)
   )
 
 (define (setup-watchdog hz)
@@ -135,6 +152,7 @@
 
 (define (main args)
   (set! *loop* (ev-default-loop 0))
+  (ev-thread-local-loop (ev-default-loop 0))
   (set-signal-handler! SIGINT (^ _ (flush) (exit)))
   (setup-watchdog 5)
   (setup-server (cadr args))
