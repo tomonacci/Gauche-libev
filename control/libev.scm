@@ -76,4 +76,21 @@
 (define (ev-timer-start . args)
   (let* ((loop (and (is-a? (car args) <ev-loop>) (pop! args)))
          (watcher (pop! args)))
+    (when (not (or (null? args) (keyword? (car args))))
+      (set! (~ watcher'callback) (pop! args)))
+    (unless (null? args)
+      (let ((%after
+             (if (keyword? (car args))
+               0
+               (pop! args)))
+            (%repeat
+             (if (or (null? args) (keyword? (car args)))
+               (~ watcher'repeat)
+               (pop! args)))
+            )
+        (let-keywords args ((after %after) (repeat %repeat))
+          (when (ev-watcher-active? watcher)
+            (ev-timer-stop watcher))
+          (ev-timer-set watcher after repeat)
+          )))
     (%ev-timer-start (or loop (~ watcher'loop)) watcher)))
