@@ -195,8 +195,12 @@ void Scm_Init_libev_glue(ScmModule*);
   (ev_timer_set (extract timer w) after repeat)
   )
 
-(define-constant EV_READ (c "SCM_MAKE_INT(EV_READ)"))
-(define-constant EV_WRITE (c "SCM_MAKE_INT(EV_WRITE)"))
+(eval*
+  (cons 'begin
+   (map (^s `(define-constant ,s (c ,#`"SCM_MAKE_INT(,s)")))
+    '(EV_READ EV_WRITE
+      EVRUN_NOWAIT EVRUN_ONCE
+      ))))
 
 (define-cfn Scm_Init_libev ()::void
   (let* ((mod::ScmModule*))
