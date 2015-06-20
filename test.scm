@@ -2,6 +2,7 @@
 ;;; Test control.libev
 ;;;
 
+(use gauche.parameter)
 (use gauche.test)
 
 (test-start "control.libev")
@@ -70,7 +71,7 @@
   (let1 watcher (make <ev-io>)
     (ev-io-init watcher (^ _) 0 EV_READ)
     (guard (e (else #t))
-      (ev-io-start watcher)
+      (parameterize ((ev-thread-local-loop (undefined))) (ev-io-start watcher))
       #f)))
 (test* "ev-io-stop (pre-set loop)" #t
   (let1 watcher (make <ev-io> :loop (ev-default-loop 0))
@@ -102,7 +103,7 @@
   (let1 watcher (make <ev-timer>)
     (ev-timer-init watcher (^ _) 0 EV_READ)
     (guard (e (else #t))
-      (ev-timer-start watcher)
+      (parameterize ((ev-thread-local-loop (undefined))) (ev-timer-start watcher))
       #f)))
 (test* "ev-watcher-active? (inactive)" #f (ev-watcher-active? (make <ev-timer>)))
 (test* "ev-watcher-active? (active)" #t

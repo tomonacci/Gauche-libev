@@ -165,7 +165,11 @@ void Scm_Init_libev_glue(ScmModule*);
     (let* ((loop::(struct ev_loop*) (ev_default_loop flags)))
       (unless loop
         (Scm_Error "could not initialize the default loop"))
-      (set! default_loop (EV_LOOP_BOX loop))))
+      (set! default_loop (EV_LOOP_BOX loop))
+      (Scm_EvalRec
+       (Scm_Cons (SCM_INTERN "ev-thread-local-loop") (Scm_Cons default_loop SCM_NIL))
+       (SCM_OBJ (SCM_FIND_MODULE "control.libev" FALSE)))
+      ))
   (return default_loop))
 
 (define-cproc ev-watcher-active? (watcher)::<boolean>
