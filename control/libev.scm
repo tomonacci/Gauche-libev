@@ -21,6 +21,7 @@
           ev-io-stop
           <ev-timer>
           ev-timer-init
+          ev-timer-set
           ev-timer-start
           ev-timer-stop
           )

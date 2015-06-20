@@ -83,6 +83,10 @@
       #f)))
 
 (test* "make <ev-timer>" #t (is-a? (make <ev-timer>) <ev-timer>))
+(test* "ev-timer-set" 0.1
+  (let1 watcher (make <ev-timer>)
+    (ev-timer-set watcher 0.5 0.1)
+    (~ watcher'repeat)))
 (test* "ev-timer-start (pre-set loop)" #t
   (let1 watcher (make <ev-timer> :loop (ev-default-loop 0))
     (ev-timer-init watcher (^ _) 0 EV_READ)

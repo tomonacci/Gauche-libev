@@ -141,6 +141,9 @@ void Scm_Init_libev_glue(ScmModule*);
         (return watcher))))
   )
 
+(define-cproc ev-timer-set (watcher::<ev-timer> after::<real> repeat::<real>)::<void>
+  (ev_timer_set (extract timer watcher) after repeat))
+
 (define-cproc %ev-timer-start (loop::<ev-loop> watcher::<ev-timer>)::<void>
   (set! (-> watcher loop) loop_scm)
   (ev_timer_start loop (extract timer watcher)))
