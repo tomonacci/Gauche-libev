@@ -140,15 +140,8 @@
   )
 
 (define (setup-watchdog hz)
-  (let ((timer (make <ev-timer>))
-        (interval (/. 1.0 hz)))
-    (ev-timer-init timer
-     (^(loop watcher revents)
-       (unless (is-a? loop <ev-loop>) (error "not a loop:" loop))
-       (unless (is-a? watcher <ev-timer>) (error "not a watcher:" watcher))
-       )
-     interval interval)
-    (ev-timer-start *loop* timer)))
+  (let1 interval (/. 1.0 hz)
+    (ev-timer-start (make <ev-timer>) (lambda #f) interval interval)))
 
 (define (main args)
   (set! *loop* (ev-default-loop 0))
