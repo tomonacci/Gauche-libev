@@ -38,6 +38,13 @@
 (define ev-thread-local-loop
   (make-parameter (undefined)))
 
+(define (ev-run . args)
+  (let* ((loop (if (and (not (null? args)) (is-a? (car args) <ev-loop>)) (pop! args) (ev-thread-local-loop)))
+         (flags (if (and (not (null? args)) (integer? (car args))) (pop! args) 0)))
+    (unless (null? args)
+      (error "too many arguments given"))
+    (%ev-run loop flags)))
+
 (define-method slot-unbound ((class <class>) (watcher <ev-watcher>) slot)
   (if (eq? slot 'loop)
     (let1 loop (ev-thread-local-loop)
