@@ -11,25 +11,34 @@
 (use srfi-19)
 (use sxml.serializer)
 (use text.html-lite :only (html-escape-string))
+(use text.tree :only (tree->string))
 (use util.queue)
 (use util.relation)
 (use www.cgi)
 
+; timeout for IO operation in seconds
+(define *timeout* 60)
+
 (define (set-nonblocking! port-or-fd)
   (sys-fcntl port-or-fd F_SETFL (logior (sys-fcntl port-or-fd F_GETFL) O_NONBLOCK)))
 
-(define (setup-response status body)
+(define (setup-response status headers body)
   (let* ((gmt (sys-gmtime (sys-time)))
          (date (sys-strftime "%a, %d %b %Y %H:%M:%S" gmt))
          (status-message (if (= status 200) "OK" "Not found"))
+         (headers
+          `((Server . "httpd.gosh")
+            (Date . ,date)
+            (Content-Length . ,(string-size body))
+            .
+            ,(if (assq 'Content-Type headers)
+               headers
+               (acons 'Content-Type "text/html" headers))))
          )
-    (string->u8vector
-     #`"HTTP/1.1 ,status ,|status-message|\r\n\
-        Connection: close\r\n\
-        Date: ,date GMT\r\n\
-        Server: httpd.gosh\r\n\
-        Content-Type: text/html\r\n\
-        Content-Length: ,(string-size body)\r\n\r\n,body")
+    ($ string->u8vector $ tree->string $ list
+     "HTTP/1.1 " status " " status-message "\r\n"
+     (map (^p (list (car p) ": " (cdr p) "\r\n")) headers)
+     "\r\n" body)
     )
   )
 
@@ -54,21 +63,44 @@
 (define-class <client> ()
   ((socket :init-keyword :socket)
    (watcher :init-keyword :watcher :init-value #f)
+   (timer :init-keyword :timer :init-value #f)
+   (yields :init-value ())
    ))
 
 (define (client-start client callback events)
   (unless (~ client'watcher)
     (set! (~ client'watcher) (make <ev-io>)))
-  (ev-io-start (~ client'watcher) callback (socket-fd (~ client'socket)) events))
+  (unless (~ client'timer)
+    (set! (~ client'timer) (make <ev-timer>))
+    (set! (~ client'timer'callback)
+      (lambda #f
+        (for-each
+         (^y (y (cons () (make-condition <error> 'message "operation timed out")))) ; TODO customize timeout condition
+         (~ client'yields)))))
+  (set! (~ client'timer'repeat) *timeout*)
+  (ev-timer-again (~ client'timer))
+  (ev-io-start (~ client'watcher) callback (socket-fd (~ client'socket)) events)
+  )
 
 (define (client-yield client callback events)
-  (shift continue
-    (client-start client (lambda #f (continue (callback))) events)))
+  (define *continue* #f)
+  (let1 result (shift continue
+                 (set! *continue* continue)
+                 (~ client'yields)
+                 (push! (~ client'yields) continue)
+                 (client-start client (lambda #f (continue (list (callback)))) events))
+    (set! (~ client'yields) (delete! *continue* (~ client'yields)))
+    (if (proper-list? result)
+      (car result)
+      (raise (cdr result)))))
 
 (define (client-finish client)
   (let1 watcher (~ client'watcher)
     (when (and watcher (ev-watcher-active? watcher))
       (ev-io-stop watcher)))
+  (let1 timer (~ client'timer)
+    (when timer
+      (ev-timer-stop timer)))
   (socket-close (~ client'socket)))
 
 (define (client-recv client buf last-len)
@@ -94,15 +126,27 @@
 
 (define (setup-server port)
   (define (init-send client request)
-    (receive (status _ body) (request->response request)
-      (let repeat ((response (setup-response status body)))
-        (let1 n (client-send client response)
-          (if (= n (u8vector-length response))
-            (begin
-              (log-interaction request status body)
-              (client-finish client)
-              )
-            (repeat (uvector-alias <u8vector> response n)))))))
+    (receive (status headers body) (request->response request)
+      (let* ((minor-version (~ request'minor-version))
+             (Connection (assoc-ref (~ request'headers) "Connection" ""))
+             (keep-alive? (or (string=? Connection "keep-alive")
+                              (and (>= minor-version 1)
+                                   (not (string=? Connection "close")))))
+             (headers (cond ((and keep-alive? (= minor-version 0))
+                             (acons 'Connection 'keep-alive headers))
+                            ((and (not keep-alive?) (>= minor-version 1))
+                             (acons 'Connection 'close headers))
+                            (else headers))))
+        (let repeat ((response (setup-response status headers body)))
+          (let1 n (client-send client response)
+            (if (= n (u8vector-length response))
+              (begin
+                (log-interaction request status body)
+                (if keep-alive?
+                  (init-recv client)
+                  (client-finish client))
+                )
+              (repeat (uvector-alias <u8vector> response n))))))))
 
   (define (init-recv client)
     (let ((buf (make-u8vector 4096))
