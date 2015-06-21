@@ -122,7 +122,12 @@
     (or (send) (client-yield client repeat EV_WRITE))))
 
 (define (log-interaction request status body)
-  (format #t "~a ~d ~d\n" (date->string (time-utc->date (current-time)) "~5.~N~z") status (string-size body)))
+  (format #t "~a ~a ~a → ~d ~d\n"
+   (date->string (time-utc->date (current-time)) "~5.~N~z")
+   (~ request'method)
+   (~ request'path)
+   status
+   (string-size body)))
 
 (define (setup-server port)
   (define (init-send client request)
