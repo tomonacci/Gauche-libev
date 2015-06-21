@@ -24,6 +24,7 @@
           ev-timer-set
           ev-timer-start
           ev-timer-stop
+          ev-timer-again
           )
   )
 (select-module control.libev)
@@ -101,3 +102,8 @@
           (ev-timer-set watcher after repeat)
           )))
     (%ev-timer-start (or loop (~ watcher'loop)) watcher)))
+
+(define (ev-timer-again loop-or-watcher :optional watcher)
+  (if (undefined? watcher)
+    (%ev-timer-again (~ loop-or-watcher'loop) loop-or-watcher)
+    (%ev-timer-again loop-or-watcher watcher)))
