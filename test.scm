@@ -10,7 +10,7 @@
 
 (test-section "module")
 (test-module 'control.libev)
-(test* "constants" #t (and (integer? EV_READ) (integer? EV_WRITE)))
+(test* "constants" #t (every integer? (list EV_READ EV_WRITE EVRUN_NOWAIT EVRUN_ONCE)))
 
 (test-section "ev-loop")
 (test* "ev-default-loop" #t (is-a? (ev-default-loop 0) <ev-loop>))

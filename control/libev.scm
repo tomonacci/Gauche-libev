@@ -5,6 +5,7 @@
 (define-module control.libev
   (use gauche.parameter)
   (export EV_READ EV_WRITE
+          EVRUN_NOWAIT EVRUN_ONCE
           <ev-loop>
           ev-default-loop
           ev-loop-new
