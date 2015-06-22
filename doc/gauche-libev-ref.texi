@@ -33,11 +33,11 @@
 @title Gauche-libev : libev wrapper for Gauche
 @c COMMON
 @subtitle version @VERSION@
-@author Shiro Kawai (shiro@@acm.org)
+@author Tomonaru Kazahaya (tomonacci@@gmail.com)
 
 @page
 @vskip 0pt plus 1filll
-Copyright @copyright{} 2015 Shiro Kawai (shiro@@acm.org)
+Copyright @copyright{} 2015 Tomonaru Kazahaya (tomonacci@@gmail.com)
 
 @end titlepage
 
