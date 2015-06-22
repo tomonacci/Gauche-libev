@@ -54,6 +54,11 @@
 (define ev-thread-local-loop
   (make-parameter (undefined)))
 
+(define-inline (optional-loop watcher)
+  (if (slot-bound? watcher 'loop)
+    (slot-ref watcher 'loop)
+    (ev-thread-local-loop)))
+
 (define (ev-run . args)
   (let* ((loop (if (and (not (null? args)) (is-a? (car args) <ev-loop>)) (pop! args) (ev-thread-local-loop)))
          (flags (if (and (not (null? args)) (integer? (car args))) (pop! args) 0)))
@@ -61,17 +66,9 @@
       (error "too many arguments given"))
     (%ev-run loop flags)))
 
-(define-method slot-unbound ((class <class>) (watcher <ev-watcher>) slot)
-  (if (eq? slot 'loop)
-    (let1 loop (ev-thread-local-loop)
-      (if (is-a? loop <ev-loop>)
-        loop
-        (next-method)))
-    (next-method)))
-
 (define (ev-watcher-clear-pending loop-or-watcher :optional watcher)
   (if (undefined? watcher)
-    (%ev-watcher-clear-pending (~ loop-or-watcher'loop) loop-or-watcher)
+    (%ev-watcher-clear-pending (optional-loop loop-or-watcher) loop-or-watcher)
     (%ev-watcher-clear-pending loop-or-watcher watcher)))
 
 (define (ev-io-start . args)
@@ -94,7 +91,7 @@
             (ev-io-stop watcher))
           (ev-io-set watcher fd events)
           )))
-    (%ev-io-start (or loop (~ watcher'loop)) watcher)))
+    (%ev-io-start (or loop (optional-loop watcher)) watcher)))
 
 (define (ev-timer-start . args)
   (let* ((loop (and (is-a? (car args) <ev-loop>) (pop! args)))
@@ -116,9 +113,9 @@
             (ev-timer-stop watcher))
           (ev-timer-set watcher after repeat)
           )))
-    (%ev-timer-start (or loop (~ watcher'loop)) watcher)))
+    (%ev-timer-start (or loop (optional-loop watcher)) watcher)))
 
 (define (ev-timer-again loop-or-watcher :optional watcher)
   (if (undefined? watcher)
-    (%ev-timer-again (~ loop-or-watcher'loop) loop-or-watcher)
+    (%ev-timer-again (optional-loop loop-or-watcher) loop-or-watcher)
     (%ev-timer-again loop-or-watcher watcher)))
