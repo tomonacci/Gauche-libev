@@ -128,7 +128,7 @@ remind what the functions are.
 @section Overview
 @deftp {Module} control.libev
 @mdindex control.libev
-The module. It is placed under @code{control} mimicking what Gauche-libuv does.
+The module. It is placed under @code{control} because that is what is done in Gauche-libuv.
 @end deftp
 
 @c ----------------------------------------------------------------------
@@ -179,6 +179,17 @@ Some kind of feature checking will be necessary if we add support for libev with
 Wraps @code{struct ev_loop}.
 @end deftp
 
+@deffn {Parameter} ev-thread-local-loop
+Many procedures that optionally take an @code{@ref{<ev-loop>}} as its first argument will consult this parameter when called without an @code{<ev-loop>}.
+By virtue of being a parameter, @code{ev-thread-local-loop} is thread local.
+Thread locality should come in handy if you are running one event loop per thread, a seemingly common configuration.
+
+The initial value is @code{#<undef>}, so you have to set it if you intend to use it.
+@example
+(ev-thread-local-loop (ev-default-loop EVBACKEND_SELECT))
+@end example
+@end deffn
+
 @defun ev-default-loop :optional flags
 Wraps @code{ev_default_loop}. Keep in mind that the default loop can be initialized only once.
 @code{ev-default-loop} takes advantage of this fact and caches an instance of @code{<ev-loop>} it makes when it is first called.
@@ -213,6 +224,9 @@ It is permitted to omit @var{loop} and supply @var{flags}.
 Returns @code{#<undef>}.
 @end defun
 
+@defun ev-loop-new flags
+@end defun
+
 @c ----------------------------------------------------------------------
 @node Watchers
 @section Watchers
@@ -220,7 +234,7 @@ Returns @code{#<undef>}.
 @anchor{<ev-watcher>}
 @deftp {Class} <ev-watcher>
 @clindex ev-watcher
-Wraps @code{struct ev_watcher *}. All other watcher classes, e.g. @code{<ev-io>}, inherit from this class.
+Wraps @code{struct ev_watcher}. All other watcher classes, e.g. @code{<ev-io>}, inherit from this class.
 
 @defivar <ev-watcher> loop
 An @code{@ref{<ev-loop>}} this watcher is associated with. This slot is read-only -- it is set when you @code{make} a watcher with a @code{:loop} keyword argument and when you start (call @code{ev-TYPE-start} on) a watcher.
@@ -232,6 +246,63 @@ A procedure invoked from @code{@ref{ev-run}} when an event occurs. It is called 
 Note that getting and setting this slot will not involve invocations of @code{ev_cb} and @code{ev_set_cb}.
 @end defivar
 @end deftp
+
+@defun ev-watcher-active? watcher
+Wraps @code{ev_is_active}. Returns @code{#t} if @var{ watcher} is active and @code{#f} otherwise.
+@end defun
+
+@defun ev-watcher-pending? watcher
+Wraps @code{ev_is_pending}. Returns @code{#t} if @var{watcher} is pending and @code{#f} otherwise.
+@end defun
+
+@defun ev-watcher-clear-pending watcher
+Wraps @code{ev_clear_pending}. Returns @code{0} if @var{watcher} is not pending and the value of @code{revents} otherwise.
+@end defun
+
+@deftp {Class} <ev-io>
+@clindex ev-io
+Wraps @code{struct ev_io}.
+
+@defivar <ev-io> fd
+A file descriptor. This slot is read-only.
+@end defivar
+
+@defivar <ev-io> events
+A bitset representing events to be notified about. This slot is read-only.
+@end defivar
+@end deftp
+
+@defun ev-io-set watcher fd events
+@defunx ev-io-init watcher callback fd events
+@end defun
+
+@defun ev-io-start watcher :optional callback fd events
+@defunx ev-io-start loop watcher :optional callback fd events
+@defunx ev-io-stop watcher
+@end defun
+
+@deftp {Class} <ev-timer>
+@clindex ev-timer
+Wraps @code{struct ev_timer}.
+
+@defivar <ev-io> repeat
+Repeating interval in (possibly fractional) seconds. @code{0} means no repetition. Setting this slot is permitted at any time, although you will have to call @code{@ref{ev-timer-again}} afterwards to tell libev about it.
+@end defivar
+@end deftp
+
+@defun ev-timer-set watcher after repeat
+@defunx ev-timer-init watcher callback after repeat
+@end defun
+
+@defun ev-timer-start watcher :optional callback after repeat
+@defunx ev-timer-start loop watcher :optional callback after repeat
+@defunx ev-timer-stop watcher
+@end defun
+
+@anchor{ev-timer-again}
+@defun ev-timer-again watcher
+@defunx ev-timer-again loop watcher
+@end defun
 
 @c ======================================================================
 @node Indices
