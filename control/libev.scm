@@ -40,6 +40,10 @@
           ev-timer-start
           ev-timer-stop
           ev-timer-again
+          <ev-stat>
+          ev-stat-set
+          ev-stat-start
+          ev-stat-stop
           )
   )
 (select-module control.libev)
@@ -122,3 +126,28 @@
   (if (undefined? watcher)
     (%ev-timer-again (optional-loop loop-or-watcher) loop-or-watcher)
     (%ev-timer-again loop-or-watcher watcher)))
+
+(define (ev-stat-set watcher path interval)
+  (when (ev-watcher-active? watcher)
+    (ev-stat-stop (~ watcher'loop)))
+  (%ev-stat-set watcher path interval))
+
+(define (ev-stat-start . args)
+  (let* ((loop (and (is-a? (car args) <ev-loop>) (pop! args)))
+         (watcher (pop! args)))
+    (when (not (or (null? args) (keyword? (car args))))
+      (set! (~ watcher'callback) (pop! args)))
+    (unless (null? args)
+      (let ((%path
+             (if (keyword? (car args))
+               0
+               (pop! args)))
+            (%interval
+             (if (or (null? args) (keyword? (car args)))
+               (~ watcher'interval)
+               (pop! args)))
+            )
+        (let-keywords args ((path %path) (interval %interval))
+          (ev-stat-set watcher path interval)
+          )))
+    (%ev-stat-start (or loop (optional-loop watcher)) watcher)))

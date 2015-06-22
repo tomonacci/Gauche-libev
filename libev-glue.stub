@@ -49,6 +49,76 @@ void Scm_Init_libev_glue(ScmModule*);
    (loop :setter #f)
    ))
 
+(eval*
+  (use text.unicode)
+  (define (slots->decls slots)
+    (append-map
+     (^(slot)
+       (cond-list
+         ((cadr slot) => (cut string-append "static ScmObj " <> "(ScmObj);"))
+         ((caddr slot) => (cut string-append "static void " <> "(ScmObj, ScmObj);"))))
+     slots))
+  (define (slots->specs slots)
+    (define (wrap cfn) (and cfn `(c ,cfn)))
+    (map (^(slot) `(,(car slot) :getter ,(wrap (cadr slot)) :setter ,(wrap (cadr slot)))) slots))
+  (define (watcher-class-decl name slots)
+    (let* ((NAME (string-upcase name))
+           (Name (string-titlecase name))
+           (<name> (string->symbol #`"<ev-,|name|>"))
+           (watcher (string->symbol #`"watcher::<ev-,|name|>"))
+           (name (string->symbol name))
+           )
+      `(begin
+         ,#`"
+SCM_CLASS_DECL(Scm_Ev,|Name|Class);
+#define SCM_CLASS_EV_,NAME (&Scm_Ev,|Name|Class)
+#define SCM_EV_,NAME(obj) ((ScmEvWatcher*)(obj))
+#define SCM_EV_,|NAME|_P(obj) (SCM_XTYPEP(obj, SCM_CLASS_EV_,NAME))
+
+typedef struct ScmEv,|Name|Rec {
+  SCM_HEADER;
+  ScmObj callback, loop;
+  void *watcher;
+} ScmEv,|Name|;
+"
+         ,@(slots->decls slots)
+         (define-cfn ,(string->symbol #`",|name|_cb") (loop::(struct ev_loop*) watcher::(struct ,(string->symbol #`"ev_,|name|*")) revents::int)::void :static
+           (Scm_ApplyRec2 (-> (SCM_EV_WATCHER (-> watcher data)) callback) (SCM_OBJ (-> watcher data)) (Scm_MakeInteger revents)))
+         (define-cclass ,<name> ,#`"ScmEvWatcher*" ,#`"Scm_Ev,|Name|Class" (Scm_EvWatcherClass)
+           ,(slots->specs slots)
+           (allocator
+             (let* ((loop (Scm_GetKeyword (SCM_MAKE_KEYWORD "loop") initargs SCM_UNDEFINED)))
+               (let* ((watcher (SCM_OBJ (SCM_NEW ScmEvWatcher))))
+                 (SCM_SET_CLASS watcher ,(string->symbol #`"SCM_CLASS_EV_,|NAME|"))
+                 (set! (-> (SCM_EV_WATCHER watcher) loop) loop)
+                 (set! (-> (SCM_EV_WATCHER watcher) watcher) (SCM_NEW (struct ,(string->symbol #`"ev_,|name|"))))
+                 (set! (-> (extract watcher watcher) data) watcher)
+                 (ev_init (extract ,name watcher) ,(string->symbol #`",|name|_cb"))
+                 (return watcher)))))
+         (define-cproc ,(string->symbol #`"%ev-,|name|-start") (loop::<ev-loop> ,watcher)::<void>
+           (set! (-> watcher loop) loop_scm)
+           (,(string->symbol #`"ev_,|name|_start") loop (extract ,name watcher)))
+         (define-cproc ,(string->symbol #`"ev-,|name|-stop") (,watcher)::<void>
+           (when (EV_LOOP_P (-> watcher loop))
+             (,(string->symbol #`"ev_,|name|_stop") (EV_LOOP_UNBOX (-> watcher loop)) (extract ,name watcher))))
+         ))))
+
+(eval*
+  (watcher-class-decl "stat"
+    '(
+      (interval "stat_interval_getter" #f)
+      (path "stat_path_getter" #f)
+      )))
+
+(define-cfn stat_interval_getter (obj) :static
+  (return (Scm_VMReturnFlonum (-> (extract stat obj) interval))))
+
+(define-cfn stat_path_getter (obj) :static
+  (return (SCM_MAKE_STR_COPYING (-> (extract stat obj) path))))
+
+(define-cproc %ev-stat-set (watcher::<ev-stat> path::<const-cstring> interval::<real>)::<void>
+  (ev_stat_set (extract stat watcher) path interval))
+
 (define-cfn io_cb (loop::(struct ev_loop*) w::(struct ev_io*) revents::int)::void :static
   (Scm_ApplyRec2 (-> (SCM_EV_WATCHER (-> w data)) callback) (SCM_OBJ (-> w data)) (Scm_MakeInteger revents)))
 
