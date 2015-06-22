@@ -132,7 +132,11 @@ The module. It is placed under @code{control} mimicking what Gauche-libuv does.
 @end deftp
 
 @c ----------------------------------------------------------------------
-@defvr {Constant} EVFLAG_AUTO
+@defvr {Constant} EV_READ
+@defvrx {Constant} EV_WRITE
+@defvrx {Constant} EVRUN_NOWAIT
+@defvrx {Constant} EVRUN_ONCE
+@defvrx {Constant} EVFLAG_AUTO
 @defvrx {Constant} EVFLAG_NOENV
 @defvrx {Constant} EVFLAG_FORKCHECK
 @defvrx {Constant} EVFLAG_NOINOTIFY
