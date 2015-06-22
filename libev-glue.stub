@@ -50,10 +50,6 @@ void Scm_Init_libev_glue(ScmModule*);
    ))
 
 (define-cfn io_cb (loop::(struct ev_loop*) w::(struct ev_io*) revents::int)::void :static
-  (unless (SCM_EV_IO_P (SCM_OBJ (-> w data)))
-    (Scm_Error "<ev-io> required, but got %S" (SCM_OBJ (-> w data))))
-  (unless (== (extract io (SCM_OBJ (-> w data))) w)
-    (Scm_Error "corrupted <ev-io> %S" (SCM_OBJ (-> w data))))
   (Scm_ApplyRec2 (-> (SCM_EV_WATCHER (-> w data)) callback) (SCM_OBJ (-> w data)) (Scm_MakeInteger revents)))
 
 (define-cfn io_fd_getter (obj) :static
@@ -110,12 +106,6 @@ void Scm_Init_libev_glue(ScmModule*);
   (ev_io_stop (EV_LOOP_UNBOX (-> watcher loop)) (extract io watcher)))
 
 (define-cfn timer_cb (loop::(struct ev_loop*) w::(struct ev_timer*) revents::int)::void :static
-  (unless (SCM_EV_TIMER_P (SCM_OBJ (-> w data)))
-    (Scm_Error "<ev-timer> required, but got %S" (SCM_OBJ (-> w data))))
-  (unless (== (extract timer (SCM_OBJ (-> w data))) w)
-    (Scm_Error "corrupted <ev-timer>: %S" (SCM_OBJ (-> w data))))
-  (unless (SCM_CLOSUREP (-> (SCM_EV_WATCHER (-> w data)) callback))
-    (Scm_Error "not a closure: %S" (SCM_OBJ (-> w data))))
   (Scm_ApplyRec2 (-> (SCM_EV_WATCHER (-> w data)) callback) (SCM_OBJ (-> w data)) (Scm_MakeInteger revents)))
 
 (define-cfn timer_repeat_getter (obj) :static
