@@ -33,6 +33,10 @@
 (cf-path-prog 'GAUCHE_INSTALL  "gauche-install")
 (cf-path-prog 'GAUCHE_CESCONV  "gauche-cesconv")
 
+(cf-path-prog 'INSTALL         "install")
+(cf-path-prog 'MAKEINFO        "makeinfo")
+(cf-path-prog 'GZIP_PROGRAM    "gzip")
+
 ;; Some common parameters
 (cf-subst 'SOEXT  (gauche-config "--so-suffix"))
 (cf-subst 'OBJEXT (gauche-config "--object-suffix"))

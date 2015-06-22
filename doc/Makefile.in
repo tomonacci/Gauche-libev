@@ -2,42 +2,20 @@ srcdir      = @srcdir@
 VPATH       = $(srcdir)
 top_builddir = @top_builddir@
 top_srcdir   = @top_srcdir@
-build        = @build@
-host         = @host@
 
+REF = gauche-libev-ref
 MANPAGES = gosh.1 gauche-config.1 gauche-install.1 gauche-package.1 \
            gauche-cesconv.1
-EXTRACTED = gauche-refe.texi gauche-refj.texi \
+EXTRACTED = $(REF)e.texi $(REF)j.texi \
 	    gauche-deve.texi gauche-devj.texi
 GENERATED = Makefile $(MANPAGES)
-@CROSS_COMPILING_no@GOSH = ../src/gosh -q -I../src -I../lib
-@CROSS_COMPILING_yes@GOSH = gosh -q
+GOSH = @GOSH@
 INSTALL = @INSTALL@
 MKINSTDIR = $(top_srcdir)/mkinstalldirs
 MAKEINFO = @MAKEINFO@
 GZIP_PROGRAM = @GZIP_PROGRAM@
 
-TEXIS = concepts.texi      \
-	corelib.texi       \
-	coresyn.texi       \
-        gauche-dev.texi    \
-	gauche-ref.texi    \
-	indexcl.texi       \
-	indexfn.texi       \
-	indexmd.texi       \
-	indexvr.texi       \
-	intro.texi         \
-	macro.texi         \
-	mapping.texi       \
-	modgauche.texi     \
-	modintro.texi      \
-	modr7rs.texi       \
-	modsrfi.texi       \
-	modutil.texi       \
-	object.texi        \
-	program.texi       \
-	references.texi    \
-	srfis.texi
+TEXIS = $(REF).texi
 
 # Manual page destination.  Default @mandir@ doesn't include 'share'
 # in the path, so I redefine it---a user can still override it by
@@ -56,7 +34,7 @@ install: all
 	if test ! -d $(DESTDIR)$(mandir)/man1; then $(MKINSTDIR) $(DESTDIR)$(mandir)/man1; fi
 	$(INSTALL) -m 444 $(MANPAGES) $(DESTDIR)$(mandir)/man1
 	if test ! -d $(DESTDIR)$(infodir); then $(MKINSTDIR) $(DESTDIR)$(infodir); fi
-	if test -f gauche-refe.info.gz -o -f gauche-refj.info.gz; then \
+	if test -f $(REF)e.info.gz -o -f $(REF)j.info.gz; then \
 	  for info in *.info*; do \
 	    $(INSTALL) -m 444 $$info $(DESTDIR)$(infodir)/; \
 	  done; \
@@ -65,11 +43,11 @@ install: all
 uninstall:
 	(cd $(mandir)/man1; rm -f $(MANPAGES))
 	(cd $(infodir); \
-	 if test -f gauche-refe.info -o -f gauche-refe.info.gz; \
-	   then rm -rf gauche-refe.*; \
+	 if test -f $(REF)e.info -o -f $(REF)e.info.gz; \
+	   then rm -rf $(REF)e.*; \
 	 fi; \
-	 if test -f gauche-refj.info -o -f gauche-refj.info.gz; \
-	   then rm -rf gauche-refj.*; \
+	 if test -f $(REF)j.info -o -f $(REF)j.info.gz; \
+	   then rm -rf $(REF)j.*; \
 	 fi)
 
 pre-package : texi
@@ -78,69 +56,69 @@ check :
 
 test :
 
-texi : gauche-refe.texi gauche-refj.texi
+texi : $(REF)e.texi $(REF)j.texi
 
-html : gauche-refe.html gauche-refj.html
+html : $(REF)e.html $(REF)j.html
 
-htmls : gauche-refe_toc.html gauche-refj_toc.html
+htmls : $(REF)e_toc.html $(REF)j_toc.html
 
-dvi : gauche-refe.dvi
+dvi : $(REF)e.dvi
 
-pdf : gauche-refe.pdf
+pdf : $(REF)e.pdf
 
-info : gauche-refe.info.gz gauche-refj.info.gz
+info : $(REF)e.info.gz $(REF)j.info.gz
 
 # special rule to regenerate srfis.tex in case srfis.scm is modified.
 srfis.texi : $(top_builddir)/src/srfis.scm
 	cd $(top_builddir)/src; $(MAKE) libsrfis.scm
 
-gauche-refe.html : gauche-refe.texi
-	texi2html --number gauche-refe.texi
+$(REF)e.html : $(REF)e.texi
+	texi2html --number $(REF)e.texi
 
-gauche-refe_toc.html : gauche-refe.texi
-	texi2html --split section --number gauche-refe.texi
+$(REF)e_toc.html : $(REF)e.texi
+	texi2html --split section --number $(REF)e.texi
 
-gauche-refe.dvi : gauche-refe.texi
-	texi2dvi gauche-refe.texi
+$(REF)e.dvi : $(REF)e.texi
+	texi2dvi $(REF)e.texi
 
-gauche-refe.pdf : gauche-refe.texi
-	pdftex gauche-refe.texi
-	texindex gauche-refe.??
-	pdftex gauche-refe.texi
+$(REF)e.pdf : $(REF)e.texi
+	pdftex $(REF)e.texi
+	texindex $(REF)e.??
+	pdftex $(REF)e.texi
 
-gauche-refe.texi : $(TEXIS) extract
-	$(GOSH) $(srcdir)/extract -en -o gauche-refe.texi $(srcdir)/gauche-ref.texi
+$(REF)e.texi : $(TEXIS) extract
+	$(GOSH) $(srcdir)/extract -en -o $(REF)e.texi $(srcdir)/$(REF).texi
 
-gauche-refe.info.gz : gauche-refe.texi
+$(REF)e.info.gz : $(REF)e.texi
 	if test X$(MAKEINFO) != X -a X$(GZIP_PROGRAM) != X; then \
-	  env LANG=C $(MAKEINFO) --no-warn gauche-refe.texi; \
-	  rm -rf gauche-refe.info*.gz; \
-	  $(GZIP_PROGRAM) gauche-refe.info gauche-refe.info-[0-9]*; \
+	  env LANG=C $(MAKEINFO) --no-warn $(REF)e.texi; \
+	  rm -rf $(REF)e.info*.gz; \
+	  $(GZIP_PROGRAM) $(REF)e.info $(REF)e.info-[0-9]*; \
 	fi
 
-gauche-refj.html : gauche-refj.texi
-	texi2html --init-file=$(srcdir)/ja-init.pl --number gauche-refj.texi
+$(REF)j.html : $(REF)j.texi
+	texi2html --init-file=$(srcdir)/ja-init.pl --number $(REF)j.texi
 
-gauche-refj_toc.html : gauche-refj.texi
-	texi2html --init-file=$(srcdir)/ja-init.pl --split section --number gauche-refj.texi
-	for f in gauche-refj*.html; do \
+$(REF)j_toc.html : $(REF)j.texi
+	texi2html --init-file=$(srcdir)/ja-init.pl --split section --number $(REF)j.texi
+	for f in $(REF)j*.html; do \
 	  sed 's/^<body lang="en"/<body lang="ja"/' $$f > $$f.t && mv $$f.t $$f; \
 	done
 
-gauche-refj.dvi : gauche-refj.texi
-	texi2dvi gauche-refj.texi
+$(REF)j.dvi : $(REF)j.texi
+	texi2dvi $(REF)j.texi
 
-gauche-refj.pdf : gauche-refj.texi
-	pdftex gauche-refj.texi
+$(REF)j.pdf : $(REF)j.texi
+	pdftex $(REF)j.texi
 
-gauche-refj.texi : $(TEXIS) extract
-	$(GOSH) $(srcdir)/extract -jp -o gauche-refj.texi $(srcdir)/gauche-ref.texi
+$(REF)j.texi : $(TEXIS) extract
+	$(GOSH) $(srcdir)/extract -jp -o $(REF)j.texi $(srcdir)/$(REF).texi
 
-gauche-refj.info.gz : gauche-refj.texi
+$(REF)j.info.gz : $(REF)j.texi
 	if test X$(MAKEINFO) != X -a X$(GZIP_PROGRAM) != X; then \
-	  env LANG=C $(MAKEINFO) --no-warn gauche-refj.texi; \
-	  rm -rf gauche-refj.info*.gz; \
-	  $(GZIP_PROGRAM) gauche-refj.info gauche-refj.info-[0-9]*; \
+	  env LANG=C $(MAKEINFO) --no-warn $(REF)j.texi; \
+	  rm -rf $(REF)j.info*.gz; \
+	  $(GZIP_PROGRAM) $(REF)j.info $(REF)j.info-[0-9]*; \
 	fi
 
 gauche-deve.texi : gauche-dev.texi extract
@@ -171,4 +149,4 @@ distclean : clean
 	rm -rf $(GENERATED)
 
 maintainer-clean : clean
-	rm -f gauche-ref*.html gauche-ref*.dvi gauche-dev*.html gauche-dev*.dvi Makefile $(GENERATED)
+	rm -f $(REF)*.html $(REF)*.dvi gauche-dev*.html gauche-dev*.dvi Makefile $(GENERATED)
