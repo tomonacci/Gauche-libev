@@ -149,9 +149,8 @@ void Scm_Init_libev_glue(ScmModule*);
   (ev_timer_start loop (extract timer watcher)))
 
 (define-cproc ev-timer-stop (watcher::<ev-timer>)::<void>
-  (unless (EV_LOOP_P (-> watcher loop))
-    (Scm_Error "no associated <ev-loop> found for %S" watcher))
-  (ev_timer_stop (EV_LOOP_UNBOX (-> watcher loop)) (extract timer watcher)))
+  (when (EV_LOOP_P (-> watcher loop))
+    (ev_timer_stop (EV_LOOP_UNBOX (-> watcher loop)) (extract timer watcher))))
 
 (define-cproc %ev-timer-again (loop::<ev-loop> watcher::<ev-timer>)::<void>
   (set! (-> watcher loop) loop_scm)
