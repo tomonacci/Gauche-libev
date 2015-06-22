@@ -6,6 +6,20 @@
   (use gauche.parameter)
   (export EV_READ EV_WRITE
           EVRUN_NOWAIT EVRUN_ONCE
+          EVFLAG_AUTO
+          EVFLAG_NOENV
+          EVFLAG_FORKCHECK
+          EVFLAG_NOINOTIFY
+          EVFLAG_SIGNALFD
+          EVFLAG_NOSIGMASK
+          EVBACKEND_SELECT
+          EVBACKEND_POLL
+          EVBACKEND_EPOLL
+          EVBACKEND_KQUEUE
+          EVBACKEND_DEVPOLL
+          EVBACKEND_PORT
+          EVBACKEND_ALL
+          EVBACKEND_MASK
           <ev-loop>
           ev-default-loop
           ev-loop-new
