@@ -4,11 +4,8 @@ top_builddir = @top_builddir@
 top_srcdir   = @top_srcdir@
 
 REF = gauche-libev-ref
-MANPAGES = gosh.1 gauche-config.1 gauche-install.1 gauche-package.1 \
-           gauche-cesconv.1
-EXTRACTED = $(REF)e.texi $(REF)j.texi \
-	    gauche-deve.texi gauche-devj.texi
-GENERATED = Makefile $(MANPAGES)
+EXTRACTED = $(REF)e.texi $(REF)j.texi
+GENERATED = Makefile
 GOSH = @GOSH@
 INSTALL = @INSTALL@
 MKINSTDIR = $(top_srcdir)/mkinstalldirs
@@ -17,13 +14,9 @@ GZIP_PROGRAM = @GZIP_PROGRAM@
 
 TEXIS = $(REF).texi
 
-# Manual page destination.  Default @mandir@ doesn't include 'share'
-# in the path, so I redefine it---a user can still override it by
-# make mandir=wherever
 prefix      = @prefix@
 datadir     = @datadir@
 datarootdir = @datarootdir@
-mandir      = @mandir@
 infodir     = @infodir@
 
 DESTDIR =
@@ -31,8 +24,6 @@ DESTDIR =
 all: info
 
 install: all
-	if test ! -d $(DESTDIR)$(mandir)/man1; then $(MKINSTDIR) $(DESTDIR)$(mandir)/man1; fi
-	$(INSTALL) -m 444 $(MANPAGES) $(DESTDIR)$(mandir)/man1
 	if test ! -d $(DESTDIR)$(infodir); then $(MKINSTDIR) $(DESTDIR)$(infodir); fi
 	if test -f $(REF)e.info.gz -o -f $(REF)j.info.gz; then \
 	  for info in *.info*; do \
@@ -41,7 +32,6 @@ install: all
 	fi
 
 uninstall:
-	(cd $(mandir)/man1; rm -f $(MANPAGES))
 	(cd $(infodir); \
 	 if test -f $(REF)e.info -o -f $(REF)e.info.gz; \
 	   then rm -rf $(REF)e.*; \
@@ -93,7 +83,7 @@ $(REF)e.info.gz : $(REF)e.texi
 	if test X$(MAKEINFO) != X -a X$(GZIP_PROGRAM) != X; then \
 	  env LANG=C $(MAKEINFO) --no-warn $(REF)e.texi; \
 	  rm -rf $(REF)e.info*.gz; \
-	  $(GZIP_PROGRAM) $(REF)e.info $(REF)e.info-[0-9]*; \
+	  $(GZIP_PROGRAM) $(REF)e.info; \
 	fi
 
 $(REF)j.html : $(REF)j.texi
@@ -118,26 +108,8 @@ $(REF)j.info.gz : $(REF)j.texi
 	if test X$(MAKEINFO) != X -a X$(GZIP_PROGRAM) != X; then \
 	  env LANG=C $(MAKEINFO) --no-warn $(REF)j.texi; \
 	  rm -rf $(REF)j.info*.gz; \
-	  $(GZIP_PROGRAM) $(REF)j.info $(REF)j.info-[0-9]*; \
+	  $(GZIP_PROGRAM) $(REF)j.info; \
 	fi
-
-gauche-deve.texi : gauche-dev.texi extract
-	$(GOSH) $(srcdir)/extract -en -o gauche-deve.texi gauche-dev.texi
-
-gauche-deve.html : gauche-deve.texi
-	texi2html --number gauche-deve.texi
-
-gauche-deve.info.gz : gauche-deve.texi
-	if test X$(MAKEINFO) != X -a X$(GZIP_PROGRAM) != X; then \
-	  env LANG=C $(MAKEINFO) --no-warn gauche-deve.texi; \
-	  rm -rf gauche-deve.info*.gz; \
-	  $(GZIP_PROGRAM) gauche-deve.info gauche-deve.info-[0-9]*; \
-	fi
-
-gauche-deve.pdf : gauche-deve.texi
-	pdftex gauche-deve.texi
-	texindex gauche-deve.??
-	pdftex gauche-deve.texi
 
 clean:
 	rm -rf core *~ *.aux *.cl *.cls *.cp *.cps *.fn *.fns *.ky *.kys \
@@ -149,4 +121,4 @@ distclean : clean
 	rm -rf $(GENERATED)
 
 maintainer-clean : clean
-	rm -f $(REF)*.html $(REF)*.dvi gauche-dev*.html gauche-dev*.dvi Makefile $(GENERATED)
+	rm -f $(REF)*.html $(REF)*.dvi Makefile $(GENERATED)
