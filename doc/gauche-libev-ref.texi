@@ -219,7 +219,7 @@ For subsequent calls, @code{ev-default-loop} returns the cached instance without
 Wraps @code{ev_run}, which starts handling events in a way specified by @var{loop}.
 @code{ev_run} recognizes @code{EVRUN_NOWAIT} and @code{EVRUN_ONCE} as @var{flags} values.
 If you omit @var{loop}, @code{(ev-thread-local-loop)} is used.
-The default value of @var{flags} is 0.
+The default value of @var{flags} is @code{0}.
 It is permitted to omit @var{loop} and supply @var{flags}.
 Returns @code{#<undef>}.
 @end defun
