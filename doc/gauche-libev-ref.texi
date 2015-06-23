@@ -304,6 +304,40 @@ Repeating interval in (possibly fractional) seconds. @code{0} means no repetitio
 @defunx ev-timer-again loop watcher
 @end defun
 
+@deftp {Class} <ev-stat>
+@clindex ev-stat
+Wraps @code{struct ev_stat}. Gauche-libev does not cache @code{<sys-stat>} instances created by getters of @code{attr} and @code{prev}, so for efficiency you should locally bind them as appropriate.
+
+@defivar <ev-stat> attr
+An instance of @code{<sys-stat>} representing the most-recently detected attributes of the file. This slot is read-only.
+
+@strong{Warning}: For some reason, fields other than @code{atime}, @code{ctime}, @code{mtime} are garbled. In the meantime, you may use @code{(sys-stat (~ @var{ev-stat}'path))} as a substitute.
+@end defivar
+
+@defivar <ev-stat> prev
+An instance of @code{<sys-stat>} representing the previous attributes of the file. This slot is read-only.
+@end defivar
+
+@defivar <ev-stat> path
+@end defivar
+
+@defivar <ev-stat> interval
+@end defivar
+@end deftp
+
+@defun ev-stat-set watcher path interval
+@c @defunx ev-stat-init watcher callback path interval
+@end defun
+
+@defun ev-stat-start watcher :optional callback path interval
+@defunx ev-stat-start loop watcher :optional callback path interval
+@defunx ev-stat-stop watcher
+@end defun
+
+@defun ev-stat-stat watcher
+Wraps @code{ev_stat_stat}.
+@end defun
+
 @c ======================================================================
 @node Indices
 @appendix Indices
