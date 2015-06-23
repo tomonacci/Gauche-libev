@@ -105,10 +105,21 @@ typedef struct ScmEv,|Name|Rec {
 
 (eval*
   (watcher-class-decl "stat"
-    '(
+    '((attr "stat_attr_getter" #f)
+      (prev "stat_prev_getter" #f)
       (interval "stat_interval_getter" #f)
       (path "stat_path_getter" #f)
       )))
+
+(define-cfn stat_attr_getter (obj) :static
+  (let* ((sys_stat (Scm_MakeSysStat)))
+    (set! (* (SCM_SYS_STAT_STAT sys_stat)) (-> (extract stat obj) attr))
+    (return sys_stat)))
+
+(define-cfn stat_prev_getter (obj) :static
+  (let* ((sys_stat (Scm_MakeSysStat)))
+    (set! (* (SCM_SYS_STAT_STAT sys_stat)) (-> (extract stat obj) prev))
+    (return sys_stat)))
 
 (define-cfn stat_interval_getter (obj) :static
   (return (Scm_VMReturnFlonum (-> (extract stat obj) interval))))
@@ -118,6 +129,10 @@ typedef struct ScmEv,|Name|Rec {
 
 (define-cproc %ev-stat-set (watcher::<ev-stat> path::<const-cstring> interval::<real>)::<void>
   (ev_stat_set (extract stat watcher) path interval))
+
+(define-cproc ev-stat-stat (watcher::<ev-stat>)::<void>
+  (when (EV_LOOP_P (-> watcher loop))
+    (ev_stat_stat (EV_LOOP_UNBOX (-> watcher loop)) (extract stat watcher))))
 
 (define-cfn io_cb (loop::(struct ev_loop*) w::(struct ev_io*) revents::int)::void :static
   (Scm_ApplyRec2 (-> (SCM_EV_WATCHER (-> w data)) callback) (SCM_OBJ (-> w data)) (Scm_MakeInteger revents)))

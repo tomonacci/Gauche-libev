@@ -44,6 +44,7 @@
           ev-stat-set
           ev-stat-start
           ev-stat-stop
+          ev-stat-stat
           )
   )
 (select-module control.libev)
