@@ -50,7 +50,7 @@ void Scm_Init_libev_glue(ScmModule*);
    ))
 
 (eval*
-  (use text.unicode)
+  (use text.unicode :only (string-upcase string-titlecase))
   (define (slots->decls slots)
     (append-map
      (^(slot)
