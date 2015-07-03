@@ -135,6 +135,17 @@ typedef struct ScmEv,|Name|Rec {
   (when (EV_LOOP_P (-> watcher loop))
     (ev_stat_stat (EV_LOOP_UNBOX (-> watcher loop)) (extract stat watcher))))
 
+(eval*
+  (watcher-class-decl "signal"
+    '((signum "signal_signum_getter" #f)
+      )))
+
+(define-cfn signal_signum_getter (obj) :static
+  (return (Scm_MakeInteger (-> (extract signal obj) signum))))
+
+(define-cproc %ev-signal-set (watcher::<ev-signal> signum::<int>)::<void>
+  (ev_signal_set (extract signal watcher) signum))
+
 (define-cfn io_cb (loop::(struct ev_loop*) w::(struct ev_io*) revents::int)::void :static
   (Scm_ApplyRec2 (-> (SCM_EV_WATCHER (-> w data)) callback) (SCM_OBJ (-> w data)) (Scm_MakeInteger revents)))
 
