@@ -1,0 +1,22 @@
+(use control.libev)
+(use srfi-1)
+
+(define (print-stat path stat)
+  (format #t "~a ~a ~s ~a\n"
+   path
+   (list->string (map (^(i c) (if (logbit? i (~ stat'perm)) c #\-)) (reverse! (iota 9)) (circular-list #\r #\w #\x)))
+   (~ stat'size)
+   (sys-strftime "%a %b %e %T %Y" (sys-localtime (~ stat'mtime)))
+   )
+  (flush)
+  )
+
+(define (main args)
+  (ev-thread-local-loop (ev-default-loop))
+  (ev-stat-start (make <ev-stat>)
+   (^(watcher revents)
+     (print-stat (~ watcher'path) (~ watcher'attr))
+     )
+   (cadr args) 0)
+  (ev-run)
+  0)
