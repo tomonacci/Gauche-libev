@@ -18,5 +18,6 @@
      (print-stat (~ watcher'path) (~ watcher'attr))
      )
    (cadr args) 0)
+  (ev-signal-start (make <ev-signal>) (lambda #f (exit)) SIGINT)
   (ev-run)
   0)
