@@ -113,7 +113,8 @@ typedef struct ScmEv,|Name|Rec {
 
 (define-cfn stat_attr_getter (obj) :static
   (let* ((sys_stat (Scm_MakeSysStat)))
-    (set! (* (SCM_SYS_STAT_STAT sys_stat)) (-> (extract stat obj) attr))
+    ; FIXME I have no idea why I have to re-align stat->attr by 8 bytes
+    (set! (* (SCM_SYS_STAT_STAT sys_stat)) (* (cast (struct stat*) (- (cast char* (& (-> (extract stat obj) attr))) 8))))
     (return sys_stat)))
 
 (define-cfn stat_prev_getter (obj) :static
