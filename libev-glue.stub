@@ -285,7 +285,7 @@ typedef struct ScmEv,|Name|Rec {
       EVBACKEND_DEVPOLL EVBACKEND_PORT EVBACKEND_ALL EVBACKEND_MASK
       ))))
 
-(define-cfn Scm_Init_libev ()::void
+(define-cfn Scm_Init_gauche_libev ()::void
   (let* ((mod::ScmModule*))
     (ev_set_allocator GC_realloc)
     (SCM_INIT_EXTENSION libev)

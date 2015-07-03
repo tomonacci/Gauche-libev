@@ -50,7 +50,7 @@
 (select-module control.libev)
 
 ;; Loads extension
-(dynamic-load "libev")
+(dynamic-load "gauche-libev")
 
 ;;
 ;; Put your Scheme definitions here
